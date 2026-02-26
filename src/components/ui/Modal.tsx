@@ -59,7 +59,7 @@ export function Modal({
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.15 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
           >
             {title && (
               <div className="flex items-center justify-between mb-4">

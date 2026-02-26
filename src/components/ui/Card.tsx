@@ -19,7 +19,7 @@ export function Card({
       className={cn(
         "rounded-xl border border-border bg-card text-card-foreground shadow-sm",
         hover &&
-          "hover:shadow-md hover:border-primary/20 transition-all duration-200 cursor-pointer",
+          "hover:shadow-md hover:border-primary/20 hover:-translate-y-0.5 transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] cursor-pointer",
         onClick && "cursor-pointer",
         className,
       )}

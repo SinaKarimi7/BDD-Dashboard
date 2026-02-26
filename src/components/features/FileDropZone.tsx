@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import type { Feature } from "@/types";
 import { parseFeatureFiles } from "@/lib/gherkin";
 import { Button } from "@/components/ui";
+import { staggerContainer, staggerItem, easing, duration } from "@/lib/motion";
 
 interface FileDropZoneProps {
   projectId: string;
@@ -92,20 +93,34 @@ export function FileDropZone({ projectId, onImport }: FileDropZoneProps) {
   return (
     <div className="space-y-4">
       {/* Drop zone */}
-      <div
+      <motion.div
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDrag}
         onDrop={handleDrop}
-        className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 transition-colors ${
-          dragActive
-            ? "border-primary bg-primary/5"
-            : "border-border hover:border-primary/40"
-        }`}
+        animate={{
+          borderColor: dragActive
+            ? "var(--color-primary)"
+            : "var(--color-border)",
+          backgroundColor: dragActive ? "rgba(22,163,74,0.05)" : "transparent",
+        }}
+        transition={{ duration: duration.normal, ease: easing.apple }}
+        className="relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-10"
       >
-        <Upload className="w-10 h-10 text-muted-foreground mb-3" />
+        <motion.div
+          animate={{ scale: dragActive ? 1.15 : 1, y: dragActive ? -4 : 0 }}
+          transition={{ duration: duration.normal, ease: easing.spring }}
+        >
+          <Upload
+            className={`w-10 h-10 mb-3 transition-colors duration-200 ${
+              dragActive ? "text-primary" : "text-muted-foreground"
+            }`}
+          />
+        </motion.div>
         <p className="text-sm font-medium text-foreground mb-1">
-          Drag & drop .feature files here
+          {dragActive
+            ? "Drop files to import"
+            : "Drag & drop .feature files here"}
         </p>
         <p className="text-xs text-muted-foreground mb-4">
           or click to browse files
@@ -117,7 +132,7 @@ export function FileDropZone({ projectId, onImport }: FileDropZoneProps) {
           onChange={handleFileInput}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
-      </div>
+      </motion.div>
 
       {/* Errors */}
       {errors.length > 0 && (
@@ -140,12 +155,16 @@ export function FileDropZone({ projectId, onImport }: FileDropZoneProps) {
           <p className="text-sm font-medium">
             {parsedFeatures.length} feature(s) ready to import:
           </p>
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+          <motion.div
+            className="space-y-2 max-h-[300px] overflow-y-auto"
+            variants={staggerContainer(40, 50)}
+            initial="initial"
+            animate="animate"
+          >
             {parsedFeatures.map((feature) => (
               <motion.div
                 key={feature.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
+                variants={staggerItem}
                 className="flex items-center gap-3 rounded-lg border border-border p-3"
               >
                 <FileText className="w-5 h-5 text-primary shrink-0" />
@@ -158,7 +177,7 @@ export function FileDropZone({ projectId, onImport }: FileDropZoneProps) {
                 <Check className="w-4 h-4 text-primary" />
               </motion.div>
             ))}
-          </div>
+          </motion.div>
           <div className="flex justify-end gap-3 pt-2">
             <Button
               variant="outline"

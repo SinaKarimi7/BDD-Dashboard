@@ -44,10 +44,10 @@ export function DropdownMenu({
               "absolute z-50 mt-1 min-w-[180px] rounded-xl border border-border bg-popover p-1 shadow-lg",
               align === "right" ? "right-0" : "left-0",
             )}
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.1 }}
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.1, ease: [0.34, 1.56, 0.64, 1] }}
             onClick={(e) => {
               e.stopPropagation();
               setOpen(false);

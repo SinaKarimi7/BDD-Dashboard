@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Beaker,
   FileText,
@@ -9,17 +9,28 @@ import {
   ArrowRight,
   Github,
   ChevronDown,
-  ChevronUp,
-  Star,
-  Users,
-  CheckCircle2,
   Quote,
 } from "lucide-react";
 import { Button } from "@/components/ui";
+import {
+  heroContainer,
+  heroItem,
+  heroMockup,
+  staggerContainer,
+  staggerItem,
+  scrollReveal,
+  collapseVariants,
+  collapseTransition,
+  easing,
+  duration,
+} from "@/lib/motion";
+import { useScrollNavbar, useParallax } from "@/hooks/useAnimations";
 
 export function LandingPage() {
   const navigate = useNavigate();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const { scrolled, hidden } = useScrollNavbar(40);
+  const { ref: parallaxRef, y: parallaxY } = useParallax(0.15);
 
   // ─── COPY: 3 Feature Blocks ──────────────────────────────────
   const features = [
@@ -113,8 +124,20 @@ export function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* ─── Header ─────────────────────────────────────────── */}
-      <header className="border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <motion.header
+        className="sticky top-0 z-50 border-b"
+        animate={{
+          height: scrolled ? 56 : 64,
+          backdropFilter: scrolled ? "blur(12px)" : "blur(0px)",
+          backgroundColor: scrolled
+            ? "rgba(255,255,255,0.92)"
+            : "var(--color-background)",
+          borderBottomColor: scrolled ? "var(--color-border)" : "transparent",
+          y: hidden ? -64 : 0,
+        }}
+        transition={{ duration: duration.normal, ease: easing.apple }}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <Beaker className="w-4 h-4 text-primary-foreground" />
@@ -138,30 +161,37 @@ export function LandingPage() {
             </Button>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       {/* ─── Hero ───────────────────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-32">
-        <div className="text-center max-w-3xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
+        <motion.div
+          className="text-center max-w-3xl mx-auto"
+          variants={heroContainer}
+          initial="initial"
+          animate="animate"
+        >
+          <motion.div variants={heroItem}>
             <div className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-1.5 text-sm text-muted-foreground mb-6">
               <Beaker className="w-4 h-4 text-primary" />
               Free &amp; Open Source — No Account Needed
             </div>
+          </motion.div>
+          <motion.div variants={heroItem}>
             {/* H1 — Hero Headline (6 words) */}
             <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-foreground mb-6">
               Stop Wrestling with{" "}
               <span className="text-primary">Feature Files</span>
             </h1>
+          </motion.div>
+          <motion.div variants={heroItem}>
             {/* Body — Hero Subhead (~15 words) */}
             <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
               Visually create, drag-and-drop, tag, and export production-ready
               Cucumber features — all in your browser, in minutes.
             </p>
+          </motion.div>
+          <motion.div variants={heroItem}>
             {/* CTA — Hero */}
             <div className="flex items-center justify-center gap-4">
               <Button size="lg" onClick={() => navigate("/dashboard")}>
@@ -181,13 +211,13 @@ export function LandingPage() {
               </Button>
             </div>
           </motion.div>
-        </div>
+        </motion.div>
 
         {/* Preview mockup */}
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.2 }}
+          variants={heroMockup}
+          initial="initial"
+          animate="animate"
           className="mt-16 mx-auto max-w-4xl"
         >
           <div className="rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
@@ -254,15 +284,22 @@ export function LandingPage() {
             dashboard. Zero hassle.
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {features.map((feature, idx) => (
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-3 gap-8"
+          variants={staggerContainer(80, 100)}
+          initial="initial"
+          whileInView="animate"
+          viewport={{ once: true, amount: 0.2 }}
+        >
+          {features.map((feature) => (
             <motion.div
               key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.15 }}
-              viewport={{ once: true }}
-              className="rounded-2xl border border-border bg-card p-8 hover:shadow-lg hover:border-primary/20 transition-all"
+              variants={staggerItem}
+              whileHover={{
+                y: -4,
+                transition: { duration: duration.normal, ease: easing.apple },
+              }}
+              className="rounded-2xl border border-border bg-card p-8 hover:shadow-lg hover:border-primary/20 transition-colors"
             >
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-5">
                 <feature.icon className="w-6 h-6 text-primary" />
@@ -275,20 +312,21 @@ export function LandingPage() {
               </p>
             </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* ─── Social Proof: Stats ────────────────────────────── */}
       <section className="border-y border-border bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          <motion.div
+            className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center"
+            variants={staggerContainer(80, 0)}
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, amount: 0.3 }}
+          >
             {stats.map((stat) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-              >
+              <motion.div key={stat.label} variants={staggerItem}>
                 <div className="text-3xl sm:text-4xl font-bold text-primary mb-1">
                   {stat.value}
                 </div>
@@ -297,7 +335,7 @@ export function LandingPage() {
                 </div>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -312,15 +350,22 @@ export function LandingPage() {
             Don't take our word for it — hear from the people who use it daily.
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {testimonials.map((t, idx) => (
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-3 gap-8"
+          variants={staggerContainer(100, 100)}
+          initial="initial"
+          whileInView="animate"
+          viewport={{ once: true, amount: 0.2 }}
+        >
+          {testimonials.map((t) => (
             <motion.div
               key={t.name}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1 }}
-              viewport={{ once: true }}
-              className="rounded-2xl border border-border bg-card p-6 flex flex-col"
+              variants={staggerItem}
+              whileHover={{
+                y: -3,
+                transition: { duration: duration.normal, ease: easing.apple },
+              }}
+              className="rounded-2xl border border-border bg-card p-6 flex flex-col hover:shadow-lg transition-shadow"
             >
               <Quote className="w-8 h-8 text-primary/20 mb-4" />
               {/* Body — Testimonial Quote */}
@@ -338,12 +383,18 @@ export function LandingPage() {
               </div>
             </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* ─── FAQ (8 Q&As) ───────────────────────────────────── */}
       <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="text-center mb-12">
+        <motion.div
+          className="text-center mb-12"
+          variants={scrollReveal}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+        >
           {/* H2 — FAQ */}
           <h2 className="text-3xl font-bold tracking-tight mb-3">
             Got Questions? We've Got Answers.
@@ -351,44 +402,65 @@ export function LandingPage() {
           <p className="text-muted-foreground text-lg">
             Everything you need to know before you start building.
           </p>
-        </div>
-        <div className="space-y-3">
+        </motion.div>
+        <motion.div
+          className="space-y-3"
+          variants={staggerContainer(50, 100)}
+          initial="initial"
+          whileInView="animate"
+          viewport={{ once: true, amount: 0.1 }}
+        >
           {faqs.map((faq, idx) => (
-            <div
+            <motion.div
               key={idx}
+              variants={staggerItem}
               className="rounded-xl border border-border bg-card overflow-hidden"
             >
               <button
                 onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
+                className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-muted/30 transition-colors cursor-pointer"
               >
                 <span className="font-medium text-sm pr-4">{faq.q}</span>
-                {openFaq === idx ? (
-                  <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-                )}
-              </button>
-              {openFaq === idx && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="px-6 pb-4"
+                <motion.span
+                  animate={{ rotate: openFaq === idx ? 180 : 0 }}
+                  transition={{ duration: duration.normal, ease: easing.apple }}
                 >
-                  {/* Body — FAQ Answer */}
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {faq.a}
-                  </p>
-                </motion.div>
-              )}
-            </div>
+                  <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                </motion.span>
+              </button>
+              <AnimatePresence>
+                {openFaq === idx && (
+                  <motion.div
+                    variants={collapseVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={collapseTransition}
+                    className="px-6 pb-4 overflow-hidden"
+                  >
+                    {/* Body — FAQ Answer */}
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {faq.a}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* ─── Final CTA ──────────────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="rounded-2xl bg-primary/5 border border-primary/20 p-12 text-center">
+        <motion.div
+          ref={parallaxRef as React.RefObject<HTMLDivElement>}
+          style={{ y: parallaxY }}
+          className="rounded-2xl bg-primary/5 border border-primary/20 p-12 text-center"
+          initial={{ opacity: 0, scale: 0.97 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: duration.slower, ease: easing.apple }}
+        >
           {/* H2 — Final CTA */}
           <h2 className="text-3xl font-bold tracking-tight mb-4">
             Your Next Sprint Deserves Better Specs
@@ -403,7 +475,7 @@ export function LandingPage() {
             Start Building — It's Free
             <ArrowRight className="w-4 h-4" />
           </Button>
-        </div>
+        </motion.div>
       </section>
 
       {/* ─── Footer ─────────────────────────────────────────── */}

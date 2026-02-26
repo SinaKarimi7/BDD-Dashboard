@@ -43,6 +43,13 @@ import {
 } from "@/components/ui";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { exportSingleFeature } from "@/lib/export";
+import { PageTransition } from "@/components/animation";
+import {
+  boardCardVariants,
+  collapseTransition,
+  easing,
+  duration,
+} from "@/lib/motion";
 
 export function BoardViewPage() {
   const { projectId, featureId } = useParams<{
@@ -97,138 +104,144 @@ export function BoardViewPage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-      <Breadcrumbs
-        items={[
-          { label: "Dashboard", path: "/dashboard" },
-          { label: project.name, path: `/projects/${projectId}` },
-          {
-            label: feature.name,
-            path: `/projects/${projectId}/features/${featureId}`,
-          },
-          { label: "Board View" },
-        ]}
-      />
-
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Board: {feature.name}
-        </h1>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              navigate(`/projects/${projectId}/features/${featureId}`)
-            }
-          >
-            <FileText className="w-4 h-4" />
-            Editor View
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => exportSingleFeature(feature)}
-          >
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
-          <Button size="sm" onClick={() => setShowAdd(true)}>
-            <Plus className="w-4 h-4" />
-            Add Scenario
-          </Button>
-        </div>
-      </div>
-
-      {sortedScenarios.length === 0 ? (
-        <EmptyState
-          title="No scenarios on the board"
-          description="Add scenarios to see them as interactive cards you can drag, reorder, and manage."
-          action={
-            <Button onClick={() => setShowAdd(true)}>
-              <Plus className="w-4 h-4" />
-              Add Scenario
-            </Button>
-          }
+    <PageTransition>
+      <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+        <Breadcrumbs
+          items={[
+            { label: "Dashboard", path: "/dashboard" },
+            { label: project.name, path: `/projects/${projectId}` },
+            {
+              label: feature.name,
+              path: `/projects/${projectId}/features/${featureId}`,
+            },
+            { label: "Board View" },
+          ]}
         />
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={sortedScenarios.map((s) => s.id)}
-            strategy={rectSortingStrategy}
-          >
-            <div className="relative">
-              {/* Flow connector lines */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {sortedScenarios.map((scenario, idx) => (
-                  <BoardCard
-                    key={scenario.id}
-                    scenario={scenario}
-                    index={idx}
-                    total={sortedScenarios.length}
-                    featureId={featureId!}
-                    projectId={projectId!}
-                    onClone={() => cloneScenario(featureId!, scenario.id)}
-                    onDelete={() => deleteScenario(featureId!, scenario.id)}
-                    onEdit={() =>
-                      navigate(`/projects/${projectId}/features/${featureId}`)
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          </SortableContext>
-        </DndContext>
-      )}
 
-      {/* Add Scenario Modal */}
-      <Modal
-        open={showAdd}
-        onClose={() => {
-          setShowAdd(false);
-          setName("");
-        }}
-        title="Add Scenario"
-      >
-        <div className="space-y-4">
-          <Input
-            label="Scenario Name"
-            placeholder="e.g. User logs in with valid credentials"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          />
-          <Select
-            label="Type"
-            value={type}
-            onChange={(e) => setType(e.target.value as typeof type)}
-            options={[
-              { value: "scenario", label: "Scenario" },
-              { value: "scenario_outline", label: "Scenario Outline" },
-            ]}
-          />
-          <div className="flex justify-end gap-3 pt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 mb-8">
+          <h1 className="text-2xl font-bold tracking-tight">
+            Board: {feature.name}
+          </h1>
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              onClick={() => {
-                setShowAdd(false);
-                setName("");
-              }}
+              size="sm"
+              onClick={() =>
+                navigate(`/projects/${projectId}/features/${featureId}`)
+              }
             >
-              Cancel
+              <FileText className="w-4 h-4" />
+              Editor View
             </Button>
-            <Button onClick={handleAdd} disabled={!name.trim()}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportSingleFeature(feature)}
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </Button>
+            <Button size="sm" onClick={() => setShowAdd(true)}>
+              <Plus className="w-4 h-4" />
               Add Scenario
             </Button>
           </div>
         </div>
-      </Modal>
-    </div>
+
+        {sortedScenarios.length === 0 ? (
+          <EmptyState
+            title="No scenarios on the board"
+            description="Add scenarios to see them as interactive cards you can drag, reorder, and manage."
+            action={
+              <Button onClick={() => setShowAdd(true)}>
+                <Plus className="w-4 h-4" />
+                Add Scenario
+              </Button>
+            }
+          />
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={sortedScenarios.map((s) => s.id)}
+              strategy={rectSortingStrategy}
+            >
+              <div className="relative">
+                {/* Flow connector lines */}
+                <AnimatePresence mode="popLayout">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {sortedScenarios.map((scenario, idx) => (
+                      <BoardCard
+                        key={scenario.id}
+                        scenario={scenario}
+                        index={idx}
+                        total={sortedScenarios.length}
+                        featureId={featureId!}
+                        projectId={projectId!}
+                        onClone={() => cloneScenario(featureId!, scenario.id)}
+                        onDelete={() => deleteScenario(featureId!, scenario.id)}
+                        onEdit={() =>
+                          navigate(
+                            `/projects/${projectId}/features/${featureId}`,
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                </AnimatePresence>
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
+
+        {/* Add Scenario Modal */}
+        <Modal
+          open={showAdd}
+          onClose={() => {
+            setShowAdd(false);
+            setName("");
+          }}
+          title="Add Scenario"
+        >
+          <div className="space-y-4">
+            <Input
+              label="Scenario Name"
+              placeholder="e.g. User logs in with valid credentials"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            />
+            <Select
+              label="Type"
+              value={type}
+              onChange={(e) => setType(e.target.value as typeof type)}
+              options={[
+                { value: "scenario", label: "Scenario" },
+                { value: "scenario_outline", label: "Scenario Outline" },
+              ]}
+            />
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAdd(false);
+                  setName("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleAdd} disabled={!name.trim()}>
+                Add Scenario
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      </div>
+    </PageTransition>
   );
 }
 
@@ -249,8 +262,6 @@ function BoardCard({
   scenario,
   index,
   total,
-  featureId,
-  projectId,
   onClone,
   onDelete,
   onEdit,
@@ -283,13 +294,27 @@ function BoardCard({
     <motion.div
       ref={setNodeRef}
       style={style}
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: index * 0.05 }}
-      className={`group relative rounded-xl border-2 bg-card shadow-sm transition-all ${
+      variants={boardCardVariants}
+      initial="initial"
+      animate="animate"
+      exit={{
+        opacity: 0,
+        scale: 0.9,
+        transition: { duration: duration.normal, ease: easing.apple },
+      }}
+      layout
+      whileHover={
+        !isDragging
+          ? {
+              y: -3,
+              transition: { duration: duration.normal, ease: easing.apple },
+            }
+          : undefined
+      }
+      className={`group relative rounded-xl border-2 bg-card shadow-sm transition-colors ${
         isDragging
-          ? "opacity-50 shadow-xl border-primary scale-105"
-          : "border-border hover:border-primary/30 hover:shadow-md"
+          ? "shadow-2xl border-primary scale-[1.03]"
+          : "border-border hover:border-primary/30"
       }`}
     >
       {/* Card header */}
@@ -374,6 +399,7 @@ function BoardCard({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
+              transition={collapseTransition}
               className="overflow-hidden mt-2"
             >
               <div className="space-y-1 text-xs font-mono border-t border-border pt-2">

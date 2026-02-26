@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   Plus,
   Download,
@@ -32,10 +32,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAppStore } from "@/store";
-import type { Scenario, Step, StepKeyword } from "@/types";
+import type { Scenario } from "@/types";
 import {
   Button,
-  Card,
   Badge,
   Modal,
   Input,
@@ -52,6 +51,8 @@ import { StepEditor } from "@/components/features/StepEditor";
 import { GherkinPreview } from "@/components/features/GherkinPreview";
 import { ExamplesEditor } from "@/components/features/ExamplesEditor";
 import { exportSingleFeature } from "@/lib/export";
+import { PageTransition } from "@/components/animation";
+import { collapseTransition, easing, duration } from "@/lib/motion";
 
 export function FeatureEditorPage() {
   const { projectId, featureId } = useParams<{
@@ -63,7 +64,6 @@ export function FeatureEditorPage() {
   const feature = useAppStore((s) => s.getFeature(featureId!));
   const updateFeature = useAppStore((s) => s.updateFeature);
   const addScenario = useAppStore((s) => s.addScenario);
-  const updateScenario = useAppStore((s) => s.updateScenario);
   const deleteScenario = useAppStore((s) => s.deleteScenario);
   const cloneScenario = useAppStore((s) => s.cloneScenario);
   const reorderScenarios = useAppStore((s) => s.reorderScenarios);
@@ -144,211 +144,232 @@ export function FeatureEditorPage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-5xl mx-auto">
-      <Breadcrumbs
-        items={[
-          { label: "Dashboard", path: "/dashboard" },
-          { label: project.name, path: `/projects/${projectId}` },
-          { label: feature.name },
-        ]}
-      />
-
-      {/* Feature header */}
-      <div className="mt-4 mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-3">
-          <h1 className="text-2xl font-bold tracking-tight">
-            <span className="gherkin-keyword">Feature:</span> {feature.name}
-          </h1>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                navigate(`/projects/${projectId}/features/${featureId}/board`)
-              }
-            >
-              <LayoutGrid className="w-4 h-4" />
-              Board View
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowPreview(!showPreview)}
-            >
-              <FileText className="w-4 h-4" />
-              {showPreview ? "Hide" : "Show"} Gherkin
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => exportSingleFeature(feature)}
-            >
-              <Download className="w-4 h-4" />
-              Export
-            </Button>
-          </div>
-        </div>
-
-        {/* Feature description */}
-        <div className="mb-4">
-          {editingFeatureDesc ? (
-            <div className="space-y-2">
-              <Textarea
-                value={featureDesc}
-                onChange={(e) => setFeatureDesc(e.target.value)}
-                placeholder="As a [role], I want [feature] so that [benefit]"
-                rows={3}
-                autoFocus
-              />
-              <div className="flex gap-2">
-                <Button size="sm" onClick={saveDescription}>
-                  Save
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setEditingFeatureDesc(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div
-              onClick={startEditDescription}
-              className="text-muted-foreground text-sm cursor-pointer hover:bg-accent/50 rounded-lg p-2 -m-2 transition-colors min-h-[40px]"
-            >
-              {feature.description || "Click to add a description..."}
-            </div>
-          )}
-        </div>
-
-        {/* Feature tags */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {feature.tags.map((tag) => (
-            <Badge key={tag.id} color={tag.color}>
-              @{tag.name}
-            </Badge>
-          ))}
-          <TagPicker
-            projectId={projectId!}
-            featureId={featureId!}
-            targetType="feature"
-            targetId={featureId!}
-          />
-        </div>
-      </div>
-
-      {/* Gherkin Preview Panel */}
-      <AnimatePresence>
-        {showPreview && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden mb-6"
-          >
-            <GherkinPreview feature={feature} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Scenarios */}
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">
-          Scenarios ({feature.scenarios.length})
-        </h2>
-        <Button size="sm" onClick={() => setShowAddScenario(true)}>
-          <Plus className="w-4 h-4" />
-          Add Scenario
-        </Button>
-      </div>
-
-      {sortedScenarios.length === 0 ? (
-        <EmptyState
-          title="No scenarios yet"
-          description="Add your first scenario to start building this feature."
-          action={
-            <Button onClick={() => setShowAddScenario(true)}>
-              <Plus className="w-4 h-4" />
-              Add Scenario
-            </Button>
-          }
+    <PageTransition>
+      <div className="p-6 lg:p-8 max-w-5xl mx-auto">
+        <Breadcrumbs
+          items={[
+            { label: "Dashboard", path: "/dashboard" },
+            { label: project.name, path: `/projects/${projectId}` },
+            { label: feature.name },
+          ]}
         />
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={sortedScenarios.map((s) => s.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-3">
-              {sortedScenarios.map((scenario) => (
-                <SortableScenarioCard
-                  key={scenario.id}
-                  scenario={scenario}
-                  featureId={featureId!}
-                  projectId={projectId!}
-                  expanded={expandedScenarios.has(scenario.id)}
-                  onToggle={() => toggleExpanded(scenario.id)}
-                  onClone={() => cloneScenario(featureId!, scenario.id)}
-                  onDelete={() => deleteScenario(featureId!, scenario.id)}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      )}
 
-      {/* Add Scenario Modal */}
-      <Modal
-        open={showAddScenario}
-        onClose={() => {
-          setShowAddScenario(false);
-          setScenarioName("");
-        }}
-        title="Add Scenario"
-      >
-        <div className="space-y-4">
-          <Input
-            label="Scenario Name"
-            placeholder="e.g. User logs in with valid credentials"
-            value={scenarioName}
-            onChange={(e) => setScenarioName(e.target.value)}
-            autoFocus
-            onKeyDown={(e) => e.key === "Enter" && handleAddScenario()}
-          />
-          <Select
-            label="Type"
-            value={scenarioType}
-            onChange={(e) =>
-              setScenarioType(e.target.value as typeof scenarioType)
-            }
-            options={[
-              { value: "scenario", label: "Scenario" },
-              { value: "scenario_outline", label: "Scenario Outline" },
-            ]}
-          />
-          <div className="flex justify-end gap-3 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowAddScenario(false);
-                setScenarioName("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleAddScenario} disabled={!scenarioName.trim()}>
-              Add Scenario
-            </Button>
+        {/* Feature header */}
+        <div className="mt-4 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-3">
+            <h1 className="text-2xl font-bold tracking-tight">
+              <span className="gherkin-keyword">Feature:</span> {feature.name}
+            </h1>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  navigate(`/projects/${projectId}/features/${featureId}/board`)
+                }
+              >
+                <LayoutGrid className="w-4 h-4" />
+                Board View
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPreview(!showPreview)}
+              >
+                <FileText className="w-4 h-4" />
+                {showPreview ? "Hide" : "Show"} Gherkin
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportSingleFeature(feature)}
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
+            </div>
+          </div>
+
+          {/* Feature description */}
+          <div className="mb-4">
+            {editingFeatureDesc ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={featureDesc}
+                  onChange={(e) => setFeatureDesc(e.target.value)}
+                  placeholder="As a [role], I want [feature] so that [benefit]"
+                  rows={3}
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={saveDescription}>
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingFeatureDesc(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={startEditDescription}
+                className="text-muted-foreground text-sm cursor-pointer hover:bg-accent/50 rounded-lg p-2 -m-2 transition-colors min-h-[40px]"
+              >
+                {feature.description || "Click to add a description..."}
+              </div>
+            )}
+          </div>
+
+          {/* Feature tags */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {feature.tags.map((tag) => (
+              <Badge key={tag.id} color={tag.color}>
+                @{tag.name}
+              </Badge>
+            ))}
+            <TagPicker
+              projectId={projectId!}
+              featureId={featureId!}
+              targetType="feature"
+              targetId={featureId!}
+            />
           </div>
         </div>
-      </Modal>
-    </div>
+
+        {/* Gherkin Preview Panel */}
+        <AnimatePresence>
+          {showPreview && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={collapseTransition}
+              className="overflow-hidden mb-6"
+            >
+              <GherkinPreview feature={feature} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Scenarios */}
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">
+            Scenarios ({feature.scenarios.length})
+          </h2>
+          <Button size="sm" onClick={() => setShowAddScenario(true)}>
+            <Plus className="w-4 h-4" />
+            Add Scenario
+          </Button>
+        </div>
+
+        {sortedScenarios.length === 0 ? (
+          <EmptyState
+            title="No scenarios yet"
+            description="Add your first scenario to start building this feature."
+            action={
+              <Button onClick={() => setShowAddScenario(true)}>
+                <Plus className="w-4 h-4" />
+                Add Scenario
+              </Button>
+            }
+          />
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={sortedScenarios.map((s) => s.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-3">
+                <AnimatePresence mode="popLayout">
+                  {sortedScenarios.map((scenario) => (
+                    <motion.div
+                      key={scenario.id}
+                      layout
+                      exit={{
+                        opacity: 0,
+                        height: 0,
+                        transition: {
+                          duration: duration.normal,
+                          ease: easing.apple,
+                        },
+                      }}
+                    >
+                      <SortableScenarioCard
+                        key={scenario.id}
+                        scenario={scenario}
+                        featureId={featureId!}
+                        projectId={projectId!}
+                        expanded={expandedScenarios.has(scenario.id)}
+                        onToggle={() => toggleExpanded(scenario.id)}
+                        onClone={() => cloneScenario(featureId!, scenario.id)}
+                        onDelete={() => deleteScenario(featureId!, scenario.id)}
+                      />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
+
+        {/* Add Scenario Modal */}
+        <Modal
+          open={showAddScenario}
+          onClose={() => {
+            setShowAddScenario(false);
+            setScenarioName("");
+          }}
+          title="Add Scenario"
+        >
+          <div className="space-y-4">
+            <Input
+              label="Scenario Name"
+              placeholder="e.g. User logs in with valid credentials"
+              value={scenarioName}
+              onChange={(e) => setScenarioName(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handleAddScenario()}
+            />
+            <Select
+              label="Type"
+              value={scenarioType}
+              onChange={(e) =>
+                setScenarioType(e.target.value as typeof scenarioType)
+              }
+              options={[
+                { value: "scenario", label: "Scenario" },
+                { value: "scenario_outline", label: "Scenario Outline" },
+              ]}
+            />
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAddScenario(false);
+                  setScenarioName("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddScenario}
+                disabled={!scenarioName.trim()}
+              >
+                Add Scenario
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      </div>
+    </PageTransition>
   );
 }
 
@@ -404,8 +425,10 @@ function SortableScenarioCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-xl border border-border bg-card shadow-sm transition-shadow ${
-        isDragging ? "shadow-xl opacity-50 z-50" : ""
+      className={`rounded-xl border border-border bg-card shadow-sm transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+        isDragging
+          ? "shadow-2xl scale-[1.02] opacity-90 z-50 border-primary/30"
+          : "hover:shadow-md"
       }`}
     >
       {/* Header */}
@@ -505,6 +528,7 @@ function SortableScenarioCard({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
+            transition={collapseTransition}
             className="overflow-hidden"
           >
             <div className="px-4 pb-4 space-y-4">

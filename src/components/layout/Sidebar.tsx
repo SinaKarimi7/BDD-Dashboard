@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store";
 import { useShallow } from "zustand/react/shallow";
+import { easing, duration } from "@/lib/motion";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -84,8 +85,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-full bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300",
+          "fixed left-0 top-0 z-50 h-full bg-sidebar border-r border-sidebar-border flex flex-col",
           "lg:relative lg:z-auto",
+          "transition-[width,transform] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
           collapsed
             ? "w-0 lg:w-16 -translate-x-full lg:translate-x-0"
             : "w-[280px] translate-x-0",
@@ -98,8 +100,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </div>
           {!collapsed && (
             <motion.span
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -8 }}
+              transition={{ duration: duration.normal, ease: easing.apple }}
               className="font-bold text-lg text-sidebar-foreground"
             >
               BDD Dashboard
@@ -191,12 +195,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             onClick={onToggle}
             className="rounded-lg p-2 hover:bg-accent transition-colors text-muted-foreground cursor-pointer"
           >
-            <ChevronLeft
-              className={cn(
-                "w-4 h-4 transition-transform",
-                collapsed && "rotate-180",
-              )}
-            />
+            <motion.div
+              animate={{ rotate: collapsed ? 180 : 0 }}
+              transition={{ duration: duration.slow, ease: easing.apple }}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </motion.div>
           </button>
         </div>
       </aside>

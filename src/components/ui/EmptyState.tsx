@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { floatingBob, easing, duration } from "@/lib/motion";
 
 interface EmptyStateProps {
   icon?: ReactNode;
@@ -17,13 +19,23 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <div
+    <motion.div
       className={cn(
         "flex flex-col items-center justify-center py-16 px-4 text-center",
         className,
       )}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: duration.slow, ease: easing.apple }}
     >
-      {icon && <div className="mb-4 text-muted-foreground">{icon}</div>}
+      {icon && (
+        <motion.div
+          className="mb-4 text-muted-foreground"
+          animate={floatingBob}
+        >
+          {icon}
+        </motion.div>
+      )}
       <h3 className="text-lg font-semibold text-foreground mb-1">{title}</h3>
       {description && (
         <p className="text-sm text-muted-foreground max-w-md mb-6">
@@ -31,6 +43,6 @@ export function EmptyState({
         </p>
       )}
       {action}
-    </div>
+    </motion.div>
   );
 }
