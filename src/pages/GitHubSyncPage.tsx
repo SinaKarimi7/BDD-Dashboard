@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useId } from "react";
 import { useParams } from "react-router-dom";
 import {
   GitBranch,
   FolderGit2,
+  Search,
   RefreshCw,
   Upload,
   Download,
@@ -20,6 +21,12 @@ import {
   GitCommitHorizontal,
   Github,
   KeyRound,
+  ChevronDown,
+  ChevronRight,
+  Building2,
+  Lock,
+  Pencil,
+  Info,
 } from "lucide-react";
 import { useAppStore } from "@/store";
 import { useShallow } from "zustand/react/shallow";
@@ -182,6 +189,509 @@ export function GitHubSyncPage() {
         )}
       </div>
     </PageTransition>
+  );
+}
+
+// ─── Repo Combobox ─────────────────────────────────────────
+
+type RepoOption = {
+  full_name: string;
+  owner: string;
+  name: string;
+  private: boolean;
+  default_branch: string;
+};
+
+function RepoCombobox({
+  repos,
+  value,
+  onChange,
+  disabled,
+}: {
+  repos: RepoOption[];
+  value: string;
+  onChange: (fullName: string) => void;
+  disabled?: boolean;
+}) {
+  const uid = useId();
+  const labelId = `${uid}-label`;
+  const inputId = `${uid}-input`;
+  const listboxId = `${uid}-listbox`;
+  const optionId = (i: number) => `${uid}-option-${i}`;
+
+  const [query, setQuery] = useState(value);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listboxRef = useRef<HTMLUListElement>(null);
+
+  // Keep the input in sync when value changes externally
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
+
+  // Reset active index when the list changes
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [query]);
+
+  // Scroll the active option into view
+  useEffect(() => {
+    if (activeIndex < 0 || !listboxRef.current) return;
+    const el = listboxRef.current.querySelector<HTMLElement>(
+      `#${CSS.escape(optionId(activeIndex))}`,
+    );
+    el?.scrollIntoView({ block: "nearest" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex]);
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+        setQuery(value);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [value]);
+
+  const filtered = query.trim()
+    ? repos.filter((r) =>
+        r.full_name.toLowerCase().includes(query.toLowerCase()),
+      )
+    : repos;
+
+  const handleSelect = (fullName: string) => {
+    setQuery(fullName);
+    setOpen(false);
+    setActiveIndex(-1);
+    onChange(fullName);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        if (!open) {
+          setOpen(true);
+          setActiveIndex(0);
+        } else {
+          setActiveIndex((i) => (i < filtered.length - 1 ? i + 1 : 0));
+        }
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        if (!open) {
+          setOpen(true);
+          setActiveIndex(filtered.length - 1);
+        } else {
+          setActiveIndex((i) => (i > 0 ? i - 1 : filtered.length - 1));
+        }
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (open && activeIndex >= 0 && filtered[activeIndex]) {
+          handleSelect(filtered[activeIndex].full_name);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setOpen(false);
+        setQuery(value);
+        setActiveIndex(-1);
+        break;
+      case "Tab":
+        if (open && filtered.length > 0) {
+          e.preventDefault();
+          if (e.shiftKey) {
+            setActiveIndex((i) => (i > 0 ? i - 1 : filtered.length - 1));
+          } else {
+            setActiveIndex((i) => (i < filtered.length - 1 ? i + 1 : 0));
+          }
+        }
+        // If list is closed, let Tab move focus naturally
+        break;
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label
+        id={labelId}
+        htmlFor={inputId}
+        className="block text-sm font-medium mb-1.5"
+      >
+        Repository
+      </label>
+      <div className="relative">
+        <Search
+          aria-hidden="true"
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+        />
+        <input
+          id={inputId}
+          type="text"
+          role="combobox"
+          aria-labelledby={labelId}
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          aria-controls={listboxId}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            open && activeIndex >= 0 ? optionId(activeIndex) : undefined
+          }
+          disabled={disabled}
+          placeholder="Search repositories..."
+          value={query}
+          autoComplete="off"
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          className="flex h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+      </div>
+
+      {/* Keyboard hint shown when repos have loaded and list is closed */}
+      {!open && repos.length > 0 && (
+        <p className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
+          <kbd className="inline-flex items-center rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] leading-none">
+            ↑↓
+          </kbd>
+          to open &amp; navigate
+          <span className="mx-0.5 text-border">·</span>
+          <kbd className="inline-flex items-center rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] leading-none">
+            Enter
+          </kbd>
+          to select
+          <span className="mx-0.5 text-border">·</span>
+          <kbd className="inline-flex items-center rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] leading-none">
+            Esc
+          </kbd>
+          to close
+        </p>
+      )}
+
+      {open && (
+        <ul
+          ref={listboxRef}
+          id={listboxId}
+          role="listbox"
+          aria-labelledby={labelId}
+          aria-label="Repositories"
+          className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg overflow-hidden"
+        >
+          {/* Keyboard shortcut hint bar */}
+          <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-[11px] text-muted-foreground select-none flex-wrap">
+            <span className="flex items-center gap-1">
+              <kbd className="inline-flex items-center rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] leading-none">
+                ↑↓
+              </kbd>
+              navigate
+            </span>
+            <span className="text-border">·</span>
+            <span className="flex items-center gap-1">
+              <kbd className="inline-flex items-center rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] leading-none">
+                Tab
+              </kbd>
+              cycle
+            </span>
+            <span className="text-border">·</span>
+            <span className="flex items-center gap-1">
+              <kbd className="inline-flex items-center rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] leading-none">
+                Enter
+              </kbd>
+              select
+            </span>
+            <span className="text-border">·</span>
+            <span className="flex items-center gap-1">
+              <kbd className="inline-flex items-center rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] leading-none">
+                Esc
+              </kbd>
+              close
+            </span>
+          </div>
+
+          <div className="max-h-56 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <li
+                role="option"
+                aria-selected={false}
+                aria-disabled="true"
+                className="px-3 py-4 text-center text-sm text-muted-foreground"
+              >
+                No repositories found.
+              </li>
+            ) : (
+              filtered.map((r, i) => {
+                const isKeyboardActive = i === activeIndex;
+                const isSelected = r.full_name === value;
+                return (
+                  <li
+                    key={r.full_name}
+                    id={optionId(i)}
+                    role="option"
+                    aria-selected={isSelected}
+                    onMouseDown={() => handleSelect(r.full_name)}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    className={[
+                      "relative flex items-center justify-between px-3 py-2 text-sm cursor-pointer transition-colors",
+                      isKeyboardActive
+                        ? // keyboard-focused: left primary bar + tinted bg — unmistakably different from hover
+                          "bg-primary/10 text-foreground before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-primary"
+                        : isSelected
+                          ? "bg-primary/5 font-medium text-foreground hover:bg-primary/10"
+                          : "hover:bg-accent hover:text-accent-foreground",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <FolderGit2
+                        aria-hidden="true"
+                        className="w-4 h-4 shrink-0 text-muted-foreground"
+                      />
+                      <span className="truncate">{r.full_name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      {r.private && (
+                        <span
+                          aria-label="Private repository"
+                          className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded"
+                        >
+                          Private
+                        </span>
+                      )}
+                      {r.full_name === value && (
+                        <Check
+                          aria-hidden="true"
+                          className="w-3.5 h-3.5 text-primary"
+                        />
+                      )}
+                    </div>
+                  </li>
+                );
+              })
+            )}
+          </div>
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ─── PAT Guide ──────────────────────────────────────────────
+
+function PATGuide() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/30">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors rounded-lg"
+      >
+        <span className="flex items-center gap-2">
+          <Info className="w-4 h-4 text-muted-foreground" />
+          How to create a Personal Access Token
+        </span>
+        {open ? (
+          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        )}
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-5 text-sm border-t border-border pt-4">
+          {/* Step 1 */}
+          <div className="space-y-1.5">
+            <p className="font-semibold flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs shrink-0">
+                1
+              </span>
+              Open GitHub Token Settings
+            </p>
+            <p className="text-muted-foreground pl-7">
+              Go to{" "}
+              <a
+                href="https://github.com/settings/profile"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-foreground hover:text-primary"
+              >
+                github.com → Profile picture
+              </a>{" "}
+              → <strong>Settings</strong> → (scroll down) →{" "}
+              <strong>Developer settings</strong> →{" "}
+              <strong>Personal access tokens</strong>.
+            </p>
+          </div>
+
+          {/* Step 2 */}
+          <div className="space-y-2">
+            <p className="font-semibold flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs shrink-0">
+                2
+              </span>
+              Choose a token type
+            </p>
+            <div className="pl-7 space-y-2">
+              <div className="rounded-md border border-border p-3 space-y-1 bg-background">
+                <p className="font-medium flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5" />
+                  Classic token{" "}
+                  <span className="text-xs font-normal text-green-600 dark:text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded">
+                    Recommended for org repos
+                  </span>
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  Simpler setup, works with all organizations immediately.
+                  Generate at{" "}
+                  <a
+                    href="https://github.com/settings/tokens/new"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-foreground hover:text-primary"
+                  >
+                    Settings → Tokens (classic) → Generate new token (classic)
+                  </a>
+                  .
+                </p>
+              </div>
+              <div className="rounded-md border border-border p-3 space-y-1 bg-background">
+                <p className="font-medium flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5" />
+                  Fine-grained token
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  More secure but requires your org admin to enable fine-grained
+                  tokens. Generate at{" "}
+                  <a
+                    href="https://github.com/settings/personal-access-tokens/new"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-foreground hover:text-primary"
+                  >
+                    Settings → Fine-grained tokens → Generate new token
+                  </a>
+                  .
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 3 — Classic permissions */}
+          <div className="space-y-2">
+            <p className="font-semibold flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs shrink-0">
+                3
+              </span>
+              Classic token — required permission
+            </p>
+            <div className="pl-7">
+              <div className="rounded-md border border-border p-3 bg-background space-y-1">
+                <p className="text-muted-foreground text-xs mb-2">
+                  Under <strong>Select scopes</strong>, check:
+                </p>
+                <div className="flex items-start gap-2">
+                  <div className="w-4 h-4 rounded border-2 border-primary bg-primary flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-2.5 h-2.5 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-mono font-medium text-xs">repo</p>
+                    <p className="text-muted-foreground text-xs">
+                      Full control of private repositories — this single scope
+                      is all you need.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 4 — Fine-grained permissions */}
+          <div className="space-y-2">
+            <p className="font-semibold flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs shrink-0">
+                4
+              </span>
+              Fine-grained token — required settings
+            </p>
+            <div className="pl-7 space-y-2 text-xs text-muted-foreground">
+              <div className="rounded-md border border-border p-3 bg-background space-y-2">
+                <div className="flex gap-2">
+                  <Building2 className="w-3.5 h-3.5 shrink-0 mt-0.5 text-foreground" />
+                  <p>
+                    <strong className="text-foreground">Resource owner</strong>{" "}
+                    — select your <strong>organization</strong> (not your
+                    personal account).
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Pencil className="w-3.5 h-3.5 shrink-0 mt-0.5 text-foreground" />
+                  <p>
+                    <strong className="text-foreground">
+                      Repository access
+                    </strong>{" "}
+                    — choose <em>"Only select repositories"</em> and pick your
+                    repo.
+                  </p>
+                </div>
+                <p className="font-medium text-foreground">
+                  Permissions → Repository permissions:
+                </p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-center gap-1.5">
+                    <div className="w-3.5 h-3.5 rounded border-2 border-primary bg-primary flex items-center justify-center shrink-0">
+                      <Check className="w-2 h-2 text-primary-foreground" />
+                    </div>
+                    <span>
+                      <strong className="text-foreground">Contents</strong>:
+                      Read and write
+                    </span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <div className="w-3.5 h-3.5 rounded border-2 border-primary bg-primary flex items-center justify-center shrink-0">
+                      <Check className="w-2 h-2 text-primary-foreground" />
+                    </div>
+                    <span>
+                      <strong className="text-foreground">Metadata</strong>:
+                      Read-only (auto-selected)
+                    </span>
+                  </li>
+                </ul>
+                <p className="italic">
+                  Note: If your org restricts fine-grained tokens, an org admin
+                  must approve it before it works.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 5 — Generate & copy */}
+          <div className="space-y-1.5">
+            <p className="font-semibold flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs shrink-0">
+                5
+              </span>
+              Set expiration, generate & copy
+            </p>
+            <p className="text-muted-foreground pl-7">
+              Set an expiration (90 days recommended), click{" "}
+              <strong>Generate token</strong>, and copy the token immediately —
+              GitHub only shows it once. Paste it in the field below.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -374,16 +884,25 @@ function ConnectionTab({
   }
 
   return (
-    <div className="space-y-6 max-w-lg">
-      {/* Step 1: Authenticate */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">1. Connect to GitHub</CardTitle>
-          <CardDescription>
-            Authorize BDD Dashboard to access your repositories.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <div className="space-y-5 max-w-xl">
+      {step === "auth" && (
+        <>
+          {/* Org repo notice */}
+          <div className="flex gap-3 rounded-lg border border-blue-500/30 bg-blue-500/5 p-4">
+            <Building2 className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-medium text-blue-600 dark:text-blue-400">
+                Connecting to an organization repository?
+              </p>
+              <p className="text-muted-foreground mt-0.5">
+                GitHub OAuth only lists <em>personal</em> repos by default. For
+                organization repos, use a{" "}
+                <strong>Personal Access Token (PAT)</strong> — it works for both
+                personal and org repos with no extra setup.
+              </p>
+            </div>
+          </div>
+
           {error && (
             <div className="flex items-center gap-2 text-sm text-destructive rounded-lg border border-destructive/30 bg-destructive/5 p-3">
               <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -391,88 +910,76 @@ function ConnectionTab({
             </div>
           )}
 
-          {/* OAuth Button — primary */}
-          {oauthAvailable && (
-            <Button
-              onClick={handleOAuth}
-              className="w-full gap-2 h-11 text-base"
-            >
-              <Github className="w-5 h-5" />
-              Connect with GitHub
-            </Button>
-          )}
-
-          {/* Divider */}
-          {oauthAvailable && (
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">
-                  or use a personal access token
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* PAT Collapsible / Always-shown */}
-          {oauthAvailable ? (
-            <button
-              onClick={() =>
-                setAuthMethod(authMethod === "pat" ? "oauth" : "pat")
-              }
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer w-full justify-center"
-            >
-              <KeyRound className="w-3.5 h-3.5" />
-              {authMethod === "pat"
-                ? "Hide token input"
-                : "Enter a Personal Access Token instead"}
-            </button>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Create a{" "}
-              <a
-                href="https://github.com/settings/tokens/new?scopes=repo&description=BDD+Dashboard"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-1"
-              >
+          {/* PAT — primary method */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <KeyRound className="w-4 h-4" />
                 Personal Access Token
-                <ExternalLink className="w-3 h-3" />
-              </a>{" "}
-              with <strong>repo</strong> scope.
-            </p>
-          )}
+              </CardTitle>
+              <CardDescription>
+                Recommended for organization repos. Works for all GitHub repo
+                types.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Step-by-step guide */}
+              <PATGuide />
 
-          {(authMethod === "pat" || !oauthAvailable) && (
-            <div className="space-y-3">
-              <Input
-                type="password"
-                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx or github_pat_..."
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleValidate()}
-              />
+              <div className="space-y-3 pt-1">
+                <Input
+                  label="Paste your token here"
+                  type="password"
+                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx  or  github_pat_..."
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleValidate()}
+                />
+                <Button
+                  onClick={handleValidate}
+                  disabled={!token.trim() || validating}
+                  className="w-full"
+                >
+                  {validating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                  {validating ? "Validating token..." : "Validate & Continue"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* OAuth — secondary */}
+          {oauthAvailable && (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    or
+                  </span>
+                </div>
+              </div>
               <Button
-                onClick={handleValidate}
-                disabled={!token.trim() || validating}
-                variant={oauthAvailable ? "outline" : "default"}
-                className="w-full"
+                variant="outline"
+                onClick={handleOAuth}
+                className="w-full gap-2"
               >
-                {validating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Check className="w-4 h-4" />
-                )}
-                {validating ? "Validating..." : "Validate & Continue"}
+                <Github className="w-4 h-4" />
+                Connect with GitHub OAuth
+                <span className="ml-auto text-xs text-muted-foreground font-normal">
+                  personal repos only
+                </span>
               </Button>
-            </div>
+            </>
           )}
-        </CardContent>
-      </Card>
+        </>
+      )}
 
-      {/* Step 2: Repo Selection */}
       {step === "repo" && user && (
         <Card>
           <CardHeader>
@@ -483,17 +990,10 @@ function ConnectionTab({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Select
-              label="Repository"
+            <RepoCombobox
+              repos={repos}
               value={selectedRepo}
-              onChange={(e) => handleRepoChange(e.target.value)}
-              options={[
-                { value: "", label: "Choose a repository..." },
-                ...repos.map((r) => ({
-                  value: r.full_name,
-                  label: `${r.full_name}${r.private ? " 🔒" : ""}`,
-                })),
-              ]}
+              onChange={handleRepoChange}
             />
 
             {branches.length > 0 && (
