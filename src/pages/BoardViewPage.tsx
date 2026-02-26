@@ -160,14 +160,14 @@ export function BoardViewPage() {
               label: feature.name,
               path: `/projects/${projectId}/features/${featureId}`,
             },
-            { label: "Board View" },
+            { label: "Kanban View" },
           ]}
         />
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
-              Board: {feature.name}
+              Kanban: {feature.name}
             </h1>
             {total > 0 && (
               <div className="flex items-center gap-3 mt-2">

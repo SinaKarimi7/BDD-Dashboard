@@ -11,6 +11,7 @@ import { ExportPage } from "@/pages/ExportPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { GitHubSyncPage } from "@/pages/GitHubSyncPage";
+import { ProjectBoardPage } from "@/pages/ProjectBoardPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,6 +41,10 @@ export default function App() {
             <Route
               path="/projects/:projectId/features/:featureId/board"
               element={<BoardViewPage />}
+            />
+            <Route
+              path="/projects/:projectId/board"
+              element={<ProjectBoardPage />}
             />
             <Route path="/projects/:projectId/tags" element={<TagsPage />} />
             <Route

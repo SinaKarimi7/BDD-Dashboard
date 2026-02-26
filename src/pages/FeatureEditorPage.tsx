@@ -12,6 +12,10 @@ import {
   GripVertical,
   ChevronDown,
   ChevronRight,
+  Circle,
+  CircleDot,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -169,7 +173,7 @@ export function FeatureEditorPage() {
                 }
               >
                 <LayoutGrid className="w-4 h-4" />
-                Board View
+                Kanban View
               </Button>
               <Button
                 variant="outline"
@@ -189,6 +193,11 @@ export function FeatureEditorPage() {
               </Button>
             </div>
           </div>
+
+          {/* Feature status summary */}
+          {sortedScenarios.length > 0 && (
+            <FeatureStatusBar scenarios={sortedScenarios} />
+          )}
 
           {/* Feature description */}
           <div className="mb-4">
@@ -566,6 +575,90 @@ function SortableScenarioCard({
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Feature Status Bar ─────────────────────────────────────
+
+const STATUS_CONFIG = [
+  {
+    status: "backlog",
+    label: "Backlog",
+    icon: Circle,
+    color: "text-muted-foreground",
+    bg: "bg-muted",
+  },
+  {
+    status: "todo",
+    label: "To Do",
+    icon: CircleDot,
+    color: "text-blue-500",
+    bg: "bg-blue-500",
+  },
+  {
+    status: "wip",
+    label: "In Progress",
+    icon: Loader2,
+    color: "text-amber-500",
+    bg: "bg-amber-500",
+  },
+  {
+    status: "done",
+    label: "Done",
+    icon: CheckCircle2,
+    color: "text-green-500",
+    bg: "bg-green-500",
+  },
+] as const;
+
+function FeatureStatusBar({ scenarios }: { scenarios: Scenario[] }) {
+  const total = scenarios.length;
+  const counts = STATUS_CONFIG.map((c) => ({
+    ...c,
+    count: scenarios.filter((s) => (s.status || "backlog") === c.status).length,
+  }));
+
+  const doneCount = counts.find((c) => c.status === "done")?.count ?? 0;
+  const progress = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+  return (
+    <div className="flex items-center gap-4 rounded-lg border border-border bg-muted/20 px-4 py-2.5 mb-4">
+      {/* Progress bar */}
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-28 h-2 rounded-full bg-muted overflow-hidden flex shrink-0">
+          {counts.map(
+            (c) =>
+              c.count > 0 && (
+                <div
+                  key={c.status}
+                  className={`h-full ${c.bg} transition-all duration-300`}
+                  style={{ width: `${(c.count / total) * 100}%` }}
+                />
+              ),
+          )}
+        </div>
+        <span className="text-xs text-muted-foreground shrink-0">
+          {progress}%
+        </span>
+      </div>
+
+      {/* Status counts */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {counts.map((c) => {
+          const Icon = c.icon;
+          return (
+            <span
+              key={c.status}
+              className={`flex items-center gap-1 text-xs ${c.count > 0 ? c.color : "text-muted-foreground/40"}`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span className="font-medium">{c.count}</span>
+              <span className="hidden sm:inline">{c.label}</span>
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -27,6 +27,8 @@ import {
   Lock,
   Pencil,
   Info,
+  Clock,
+  Minus,
 } from "lucide-react";
 import { useAppStore } from "@/store";
 import { useShallow } from "zustand/react/shallow";
@@ -1168,11 +1170,14 @@ function PullTab({
         const importedFeatures = projectFeatures.slice(-parsed.length);
         importedFeatures.forEach((f, i) => {
           if (parsed[i]) {
+            // Store the round-tripped Gherkin so the Push tab comparison
+            // matches — raw file content may differ from our generator output
+            const roundTripped = featureToGherkin(f);
             onMapFile({
               featureId: f.id,
               filePath: parsed[i].filePath,
               sha: parsed[i].sha,
-              lastSyncedContent: parsed[i].content,
+              lastSyncedContent: roundTripped,
               lastSyncedAt: new Date().toISOString(),
             });
           }
@@ -1320,6 +1325,75 @@ function PullTab({
   );
 }
 
+// ─── Diff Utilities ─────────────────────────────────────────
+
+type DiffLine = {
+  type: "added" | "removed" | "context";
+  text: string;
+  oldLineNo?: number;
+  newLineNo?: number;
+};
+
+function computeDiff(oldText: string, newText: string): DiffLine[] {
+  const oldLines = oldText.split("\n");
+  const newLines = newText.split("\n");
+
+  // Simple LCS-based diff
+  const m = oldLines.length;
+  const n = newLines.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    Array(n + 1).fill(0),
+  );
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (oldLines[i - 1] === newLines[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  const result: DiffLine[] = [];
+  let i = m;
+  let j = n;
+  const stack: DiffLine[] = [];
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      stack.push({
+        type: "context",
+        text: oldLines[i - 1],
+        oldLineNo: i,
+        newLineNo: j,
+      });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      stack.push({ type: "added", text: newLines[j - 1], newLineNo: j });
+      j--;
+    } else {
+      stack.push({ type: "removed", text: oldLines[i - 1], oldLineNo: i });
+      i--;
+    }
+  }
+  stack.reverse();
+  result.push(...stack);
+  return result;
+}
+
+function countDiffStats(diff: DiffLine[]): {
+  additions: number;
+  deletions: number;
+} {
+  let additions = 0;
+  let deletions = 0;
+  for (const line of diff) {
+    if (line.type === "added") additions++;
+    if (line.type === "removed") deletions++;
+  }
+  return { additions, deletions };
+}
+
 // ─── Push Tab ───────────────────────────────────────────────
 
 interface ChangeItem {
@@ -1328,6 +1402,11 @@ interface ChangeItem {
   filePath: string;
   type: "new" | "modified" | "unchanged";
   currentContent: string;
+  oldContent: string;
+  updatedAt: string;
+  lastSyncedAt?: string;
+  additions: number;
+  deletions: number;
   mapping?: GitHubFileMapping;
 }
 
@@ -1390,23 +1469,35 @@ function PushTab({
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_|_$/g, "");
+      const newLines = currentContent.split("\n").length;
       return {
         featureId: feature.id,
         featureName: feature.name,
         filePath: `${basePath}${fileName}.feature`,
         type: "new" as const,
         currentContent,
+        oldContent: "",
+        updatedAt: feature.updatedAt,
+        additions: newLines,
+        deletions: 0,
       };
     }
 
-    const isModified =
-      currentContent.trim() !== mapping.lastSyncedContent.trim();
+    const oldContent = mapping.lastSyncedContent;
+    const isModified = currentContent.trim() !== oldContent.trim();
+    const diff = isModified ? computeDiff(oldContent, currentContent) : null;
+    const stats = diff ? countDiffStats(diff) : { additions: 0, deletions: 0 };
     return {
       featureId: feature.id,
       featureName: feature.name,
       filePath: mapping.filePath,
       type: isModified ? ("modified" as const) : ("unchanged" as const),
       currentContent,
+      oldContent,
+      updatedAt: feature.updatedAt,
+      lastSyncedAt: mapping.lastSyncedAt,
+      additions: stats.additions,
+      deletions: stats.deletions,
       mapping,
     };
   });
@@ -1568,6 +1659,7 @@ function PushTab({
           {changes.map((change) => {
             const isSelected = selectedChanges.has(change.featureId);
             const isPending = change.type !== "unchanged";
+            const relDate = formatRelativeDate(change.updatedAt);
 
             return (
               <div
@@ -1605,6 +1697,34 @@ function PushTab({
                   <p className="text-xs text-muted-foreground truncate">
                     {change.filePath}
                   </p>
+                  {/* Date + diff stats row */}
+                  <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground flex-wrap">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {relDate}
+                    </span>
+                    {isPending && (
+                      <span className="flex items-center gap-2">
+                        {change.additions > 0 && (
+                          <span className="text-green-500 font-medium flex items-center gap-0.5">
+                            <Plus className="w-3 h-3" />
+                            {change.additions}
+                          </span>
+                        )}
+                        {change.deletions > 0 && (
+                          <span className="text-red-500 font-medium flex items-center gap-0.5">
+                            <Minus className="w-3 h-3" />
+                            {change.deletions}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {change.lastSyncedAt && (
+                      <span className="text-muted-foreground/70">
+                        synced {formatRelativeDate(change.lastSyncedAt)}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <Badge
@@ -1777,21 +1897,304 @@ function PushTab({
         </div>
       </Modal>
 
-      {/* Preview Modal */}
+      {/* Diff / Preview Modal */}
       <Modal
         open={!!previewFeature}
         onClose={() => setPreviewFeature(null)}
-        title={`Preview: ${previewFeature?.featureName || ""}`}
-        size="lg"
+        title={`${previewFeature?.type === "modified" ? "Changes" : "Preview"}: ${previewFeature?.featureName || ""}`}
+        size="xl"
       >
-        {previewFeature && (
-          <div className="max-h-[500px] overflow-auto">
-            <pre className="text-xs font-mono bg-muted/50 rounded-lg p-4 whitespace-pre-wrap">
-              {previewFeature.currentContent}
-            </pre>
-          </div>
-        )}
+        {previewFeature && <DiffViewer change={previewFeature} />}
       </Modal>
     </div>
   );
+}
+
+// ─── Diff Viewer ────────────────────────────────────────────
+
+function DiffViewer({ change }: { change: ChangeItem }) {
+  const [viewMode, setViewMode] = useState<"inline" | "side">(
+    change.type === "new" ? "inline" : "inline",
+  );
+
+  if (change.type === "new") {
+    return (
+      <div>
+        <div className="flex items-center gap-3 mb-3 text-xs text-muted-foreground">
+          <span className="text-green-500 font-medium">
+            +{change.additions} lines
+          </span>
+          <span>New file</span>
+        </div>
+        <div className="max-h-[500px] overflow-auto rounded-lg border border-border">
+          <table className="w-full text-xs font-mono border-collapse">
+            <tbody>
+              {change.currentContent.split("\n").map((line, i) => (
+                <tr
+                  key={i}
+                  className="bg-green-500/5 border-b border-border/30 last:border-b-0"
+                >
+                  <td className="w-12 text-right pr-3 pl-2 py-0.5 text-muted-foreground/50 select-none border-r border-border/30">
+                    {i + 1}
+                  </td>
+                  <td className="w-6 text-center text-green-500 select-none py-0.5">
+                    +
+                  </td>
+                  <td className="px-3 py-0.5 whitespace-pre-wrap break-all">
+                    {line || " "}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  const diff = computeDiff(change.oldContent, change.currentContent);
+  const stats = countDiffStats(diff);
+
+  return (
+    <div>
+      {/* Diff header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="text-green-500 font-medium">+{stats.additions}</span>
+          <span className="text-red-500 font-medium">-{stats.deletions}</span>
+          <span>
+            {stats.additions + stats.deletions} change
+            {stats.additions + stats.deletions !== 1 ? "s" : ""}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
+          <button
+            onClick={() => setViewMode("inline")}
+            className={`px-2.5 py-1 text-xs rounded-md transition-colors cursor-pointer ${
+              viewMode === "inline"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Inline
+          </button>
+          <button
+            onClick={() => setViewMode("side")}
+            className={`px-2.5 py-1 text-xs rounded-md transition-colors cursor-pointer ${
+              viewMode === "side"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Side by Side
+          </button>
+        </div>
+      </div>
+
+      <div className="max-h-[500px] overflow-auto rounded-lg border border-border">
+        {viewMode === "inline" ? (
+          <InlineDiff diff={diff} />
+        ) : (
+          <SideBySideDiff diff={diff} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InlineDiff({ diff }: { diff: DiffLine[] }) {
+  return (
+    <table className="w-full text-xs font-mono border-collapse">
+      <tbody>
+        {diff.map((line, i) => (
+          <tr
+            key={i}
+            className={`border-b border-border/30 last:border-b-0 ${
+              line.type === "added"
+                ? "bg-green-500/10"
+                : line.type === "removed"
+                  ? "bg-red-500/10"
+                  : ""
+            }`}
+          >
+            <td className="w-10 text-right pr-1 pl-2 py-0.5 text-muted-foreground/40 select-none border-r border-border/30 tabular-nums">
+              {line.oldLineNo ?? ""}
+            </td>
+            <td className="w-10 text-right pr-1 pl-1 py-0.5 text-muted-foreground/40 select-none border-r border-border/30 tabular-nums">
+              {line.newLineNo ?? ""}
+            </td>
+            <td
+              className={`w-5 text-center select-none py-0.5 ${
+                line.type === "added"
+                  ? "text-green-500"
+                  : line.type === "removed"
+                    ? "text-red-500"
+                    : "text-muted-foreground/20"
+              }`}
+            >
+              {line.type === "added"
+                ? "+"
+                : line.type === "removed"
+                  ? "−"
+                  : " "}
+            </td>
+            <td
+              className={`px-3 py-0.5 whitespace-pre-wrap break-all ${
+                line.type === "added"
+                  ? "text-green-300"
+                  : line.type === "removed"
+                    ? "text-red-300"
+                    : ""
+              }`}
+            >
+              {line.text || " "}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function SideBySideDiff({ diff }: { diff: DiffLine[] }) {
+  // Build left (old) and right (new) columns, aligned row-by-row
+  type SideRow = {
+    lineNo?: number;
+    text: string;
+    type: "context" | "removed" | "added" | "empty";
+  };
+  const left: SideRow[] = [];
+  const right: SideRow[] = [];
+
+  let i = 0;
+  while (i < diff.length) {
+    const line = diff[i];
+    if (line.type === "context") {
+      left.push({ lineNo: line.oldLineNo, text: line.text, type: "context" });
+      right.push({ lineNo: line.newLineNo, text: line.text, type: "context" });
+      i++;
+    } else if (line.type === "removed") {
+      // Collect consecutive removed lines, then pair with consecutive added lines
+      const removedBlock: DiffLine[] = [];
+      while (i < diff.length && diff[i].type === "removed") {
+        removedBlock.push(diff[i]);
+        i++;
+      }
+      const addedBlock: DiffLine[] = [];
+      while (i < diff.length && diff[i].type === "added") {
+        addedBlock.push(diff[i]);
+        i++;
+      }
+      const maxLen = Math.max(removedBlock.length, addedBlock.length);
+      for (let j = 0; j < maxLen; j++) {
+        left.push(
+          j < removedBlock.length
+            ? {
+                lineNo: removedBlock[j].oldLineNo,
+                text: removedBlock[j].text,
+                type: "removed",
+              }
+            : { text: "", type: "empty" },
+        );
+        right.push(
+          j < addedBlock.length
+            ? {
+                lineNo: addedBlock[j].newLineNo,
+                text: addedBlock[j].text,
+                type: "added",
+              }
+            : { text: "", type: "empty" },
+        );
+      }
+    } else {
+      // Added without a preceding removed
+      left.push({ text: "", type: "empty" });
+      right.push({ lineNo: line.newLineNo, text: line.text, type: "added" });
+      i++;
+    }
+  }
+
+  const cellBg = (type: SideRow["type"]) =>
+    type === "removed"
+      ? "bg-red-500/10"
+      : type === "added"
+        ? "bg-green-500/10"
+        : type === "empty"
+          ? "bg-muted/30"
+          : "";
+
+  return (
+    <div className="grid grid-cols-2">
+      {/* Left = old */}
+      <div className="border-r border-border overflow-x-auto">
+        <table className="w-full text-xs font-mono border-collapse">
+          <tbody>
+            {left.map((row, idx) => (
+              <tr
+                key={idx}
+                className={`border-b border-border/30 last:border-b-0 ${cellBg(row.type)}`}
+              >
+                <td className="w-10 text-right pr-1.5 pl-2 py-0.5 text-muted-foreground/40 select-none border-r border-border/30 tabular-nums">
+                  {row.lineNo ?? ""}
+                </td>
+                <td className="w-5 text-center select-none py-0.5 text-red-500/60">
+                  {row.type === "removed" ? "−" : ""}
+                </td>
+                <td
+                  className={`px-2 py-0.5 whitespace-pre-wrap break-all ${
+                    row.type === "removed" ? "text-red-300" : ""
+                  }`}
+                >
+                  {row.text || " "}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {/* Right = new */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs font-mono border-collapse">
+          <tbody>
+            {right.map((row, idx) => (
+              <tr
+                key={idx}
+                className={`border-b border-border/30 last:border-b-0 ${cellBg(row.type)}`}
+              >
+                <td className="w-10 text-right pr-1.5 pl-2 py-0.5 text-muted-foreground/40 select-none border-r border-border/30 tabular-nums">
+                  {row.lineNo ?? ""}
+                </td>
+                <td className="w-5 text-center select-none py-0.5 text-green-500/60">
+                  {row.type === "added" ? "+" : ""}
+                </td>
+                <td
+                  className={`px-2 py-0.5 whitespace-pre-wrap break-all ${
+                    row.type === "added" ? "text-green-300" : ""
+                  }`}
+                >
+                  {row.text || " "}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Date Helpers ───────────────────────────────────────────
+
+function formatRelativeDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.round(diffMs / 60000);
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.round(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.round(diffHours / 24);
+  if (diffDays < 30) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
 }

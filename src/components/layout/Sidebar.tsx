@@ -13,6 +13,7 @@ import {
   Beaker,
   BarChart3,
   FolderGit2,
+  LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store";
@@ -49,6 +50,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           isActive: (p: string) =>
             p === `/projects/${projectId}` ||
             p.startsWith(`/projects/${projectId}/features/`),
+        },
+        {
+          icon: LayoutGrid,
+          label: "Board",
+          path: `/projects/${projectId}/board`,
+          isActive: (p: string) => isActive(`/projects/${projectId}/board`),
         },
         {
           icon: Tags,
