@@ -11,11 +11,13 @@ import {
   ChevronLeft,
   Menu,
   Beaker,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store";
 import { useShallow } from "zustand/react/shallow";
 import { easing, duration } from "@/lib/motion";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -52,6 +54,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           label: "Tags",
           path: `/projects/${projectId}/tags`,
           isActive: (p: string) => isActive(`/projects/${projectId}/tags`),
+        },
+        {
+          icon: BarChart3,
+          label: "Analytics",
+          path: `/projects/${projectId}/analytics`,
+          isActive: (p: string) => isActive(`/projects/${projectId}/analytics`),
         },
         {
           icon: Download,
@@ -189,8 +197,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
         </nav>
 
-        {/* Collapse toggle (desktop only) */}
-        <div className="hidden lg:flex items-center justify-center p-3 border-t border-sidebar-border">
+        {/* Theme toggle + Collapse (desktop only) */}
+        <div className="hidden lg:flex flex-col items-center gap-2 p-3 border-t border-sidebar-border">
+          <ThemeToggle collapsed={collapsed} />
           <button
             onClick={onToggle}
             className="rounded-lg p-2 hover:bg-accent transition-colors text-muted-foreground cursor-pointer"

@@ -12,6 +12,7 @@ import {
   Quote,
 } from "lucide-react";
 import { Button } from "@/components/ui";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
   heroContainer,
   heroItem,
@@ -25,12 +26,14 @@ import {
   duration,
 } from "@/lib/motion";
 import { useScrollNavbar, useParallax } from "@/hooks/useAnimations";
+import { useThemeStore } from "@/store/theme";
 
 export function LandingPage() {
   const navigate = useNavigate();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const { scrolled, hidden } = useScrollNavbar(40);
   const { ref: parallaxRef, y: parallaxY } = useParallax(0.15);
+  const resolved = useThemeStore((s) => s.resolved);
 
   // ─── COPY: 3 Feature Blocks ──────────────────────────────────
   const features = [
@@ -130,7 +133,9 @@ export function LandingPage() {
           height: scrolled ? 56 : 64,
           backdropFilter: scrolled ? "blur(12px)" : "blur(0px)",
           backgroundColor: scrolled
-            ? "rgba(255,255,255,0.92)"
+            ? resolved === "dark"
+              ? "rgba(9,9,11,0.92)"
+              : "rgba(255,255,255,0.92)"
             : "var(--color-background)",
           borderBottomColor: scrolled ? "var(--color-border)" : "transparent",
           y: hidden ? -64 : 0,
@@ -146,6 +151,7 @@ export function LandingPage() {
             <span className="font-bold text-lg">BDD Dashboard</span>
           </div>
           <div className="flex items-center gap-3">
+            <ThemeToggle collapsed />
             <a
               href="https://github.com/SinaKarimi7/BDD-Dashboard"
               target="_blank"

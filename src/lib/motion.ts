@@ -287,12 +287,14 @@ export const shakeVariants: Variants = {
 };
 
 /** Navbar shrink on scroll */
-export const navbarShrinkStyle = (scrolled: boolean) =>
+export const navbarShrinkStyle = (scrolled: boolean, dark = false) =>
   ({
     height: scrolled ? 56 : 64,
     backdropFilter: scrolled ? "blur(12px)" : "none",
     backgroundColor: scrolled
-      ? "rgba(255,255,255,0.92)"
+      ? dark
+        ? "rgba(9,9,11,0.92)"
+        : "rgba(255,255,255,0.92)"
       : "var(--color-background)",
     borderBottomColor: scrolled ? "var(--color-border)" : "transparent",
   }) as const;

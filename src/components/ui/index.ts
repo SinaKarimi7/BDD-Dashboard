@@ -16,3 +16,4 @@ export { EmptyState } from "./EmptyState";
 export { Select } from "./Select";
 export { SearchInput } from "./SearchInput";
 export { Tooltip } from "./Tooltip";
+export { ThemeToggle } from "./ThemeToggle";

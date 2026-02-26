@@ -5,6 +5,7 @@
 
 /* ─── Primitive Palette ───────────────────────────────────────────────────── */
 :root {
+  color-scheme: light;
   /* Gray */
   --ds-gray-50:  #F9FAFB;
   --ds-gray-100: #F3F4F6;
