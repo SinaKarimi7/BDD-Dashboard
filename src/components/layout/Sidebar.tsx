@@ -38,17 +38,31 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   const projectNav = projectId
     ? [
-        { icon: FolderOpen, label: "Features", path: `/projects/${projectId}` },
-        { icon: Tags, label: "Tags", path: `/projects/${projectId}/tags` },
+        {
+          icon: FolderOpen,
+          label: "Features",
+          path: `/projects/${projectId}`,
+          isActive: (p: string) =>
+            p === `/projects/${projectId}` ||
+            p.startsWith(`/projects/${projectId}/features/`),
+        },
+        {
+          icon: Tags,
+          label: "Tags",
+          path: `/projects/${projectId}/tags`,
+          isActive: (p: string) => isActive(`/projects/${projectId}/tags`),
+        },
         {
           icon: Download,
           label: "Export",
           path: `/projects/${projectId}/export`,
+          isActive: (p: string) => isActive(`/projects/${projectId}/export`),
         },
         {
           icon: Settings,
           label: "Settings",
           path: `/projects/${projectId}/settings`,
+          isActive: (p: string) => isActive(`/projects/${projectId}/settings`),
         },
       ]
     : [];
@@ -127,7 +141,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   to={item.path}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                    isActive(item.path)
+                    item.isActive(location.pathname)
                       ? "bg-primary/10 text-primary"
                       : "text-sidebar-foreground/70 hover:bg-accent hover:text-sidebar-foreground",
                   )}

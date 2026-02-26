@@ -201,19 +201,67 @@ export const useAppStore = create<AppState>()(
         const existing = state.features.filter(
           (f) => f.projectId === projectId,
         ).length;
-        const withProject = importedFeatures.map((f, i) => ({
-          ...f,
-          id: generateId(),
-          projectId,
-          position: existing + i,
-          scenarios: f.scenarios.map((s) => ({
-            ...s,
+
+        // Build lookup of tags already in this project (by name)
+        const TAG_COLORS = [
+          "#22c55e",
+          "#3b82f6",
+          "#f59e0b",
+          "#ef4444",
+          "#8b5cf6",
+          "#ec4899",
+          "#06b6d4",
+          "#f97316",
+          "#14b8a6",
+          "#6366f1",
+        ];
+        const existingTagMap = new Map(
+          state.tags
+            .filter((t) => t.projectId === projectId)
+            .map((t) => [t.name.toLowerCase(), t]),
+        );
+        const newTagEntries: Tag[] = [];
+
+        const resolveTag = (tagName: string): Tag => {
+          const key = tagName.toLowerCase();
+          if (existingTagMap.has(key)) return existingTagMap.get(key)!;
+          const tag: Tag = {
             id: generateId(),
-            featureId: f.id,
-            steps: s.steps.map((st) => ({ ...st, id: generateId() })),
-          })),
+            projectId,
+            name: tagName,
+            color:
+              TAG_COLORS[
+                (existingTagMap.size + newTagEntries.length) % TAG_COLORS.length
+              ],
+          };
+          existingTagMap.set(key, tag);
+          newTagEntries.push(tag);
+          return tag;
+        };
+
+        const withProject = importedFeatures.map((f, i) => {
+          const newFeatureId = generateId();
+          return {
+            ...f,
+            id: newFeatureId,
+            projectId,
+            position: existing + i,
+            tags: f.tags.map((t) => resolveTag(t.name)),
+            scenarios: f.scenarios.map((s) => ({
+              ...s,
+              id: generateId(),
+              featureId: newFeatureId,
+              tags: s.tags.map((t) => resolveTag(t.name)),
+              steps: s.steps.map((st) => ({ ...st, id: generateId() })),
+            })),
+          };
+        });
+
+        set((s) => ({
+          features: [...s.features, ...withProject],
+          tags:
+            newTagEntries.length > 0 ? [...s.tags, ...newTagEntries] : s.tags,
         }));
-        set((s) => ({ features: [...s.features, ...withProject] }));
       },
 
       // ── Scenarios ─────────────────────────────────────────

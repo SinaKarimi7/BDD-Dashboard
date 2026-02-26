@@ -28,7 +28,13 @@ export function DropdownMenu({
 
   return (
     <div className="relative" ref={ref}>
-      <div onClick={() => setOpen(!open)} className="cursor-pointer">
+      <div
+        onClickCapture={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        className="cursor-pointer"
+      >
         {trigger}
       </div>
       <AnimatePresence>
@@ -42,8 +48,12 @@ export function DropdownMenu({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.1 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+            }}
           >
-            <div onClick={() => setOpen(false)}>{children}</div>
+            {children}
           </motion.div>
         )}
       </AnimatePresence>

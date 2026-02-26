@@ -401,11 +401,12 @@ function SortableScenarioCard({
     scenario.type === "scenario_outline" ? "Scenario Outline" : "Scenario";
 
   return (
-    <motion.div
+    <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-xl border border-border bg-card shadow-sm ${isDragging ? "opacity-50 shadow-lg" : ""}`}
-      layout
+      className={`rounded-xl border border-border bg-card shadow-sm transition-shadow ${
+        isDragging ? "shadow-xl opacity-50 z-50" : ""
+      }`}
     >
       {/* Header */}
       <div className="flex items-center gap-2 p-4">
@@ -541,6 +542,6 @@ function SortableScenarioCard({
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }

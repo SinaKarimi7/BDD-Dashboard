@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Upload, FileText, Check, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Feature } from "@/types";
@@ -14,6 +14,7 @@ export function FileDropZone({ projectId, onImport }: FileDropZoneProps) {
   const [dragActive, setDragActive] = useState(false);
   const [parsedFeatures, setParsedFeatures] = useState<Feature[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
+  const dragCounter = useRef(0);
 
   const processFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -56,16 +57,26 @@ export function FileDropZone({ projectId, onImport }: FileDropZoneProps) {
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current += 1;
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current === 0) setDragActive(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    dragCounter.current = 0;
     setDragActive(false);
     if (e.dataTransfer.files.length > 0) {
       processFiles(e.dataTransfer.files);
@@ -82,8 +93,8 @@ export function FileDropZone({ projectId, onImport }: FileDropZoneProps) {
     <div className="space-y-4">
       {/* Drop zone */}
       <div
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
         onDragOver={handleDrag}
         onDrop={handleDrop}
         className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 transition-colors ${

@@ -1,6 +1,19 @@
 import type { Feature, Step, StepKeyword } from "@/types";
 import { generateId } from "@/lib/utils";
 
+const TAG_COLORS = [
+  "#22c55e",
+  "#3b82f6",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#ec4899",
+  "#06b6d4",
+  "#f97316",
+  "#14b8a6",
+  "#6366f1",
+];
+
 // ─── Export a single Feature to Gherkin text ──────────────────
 
 export function featureToGherkin(feature: Feature): string {
@@ -166,6 +179,13 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
       // Feature
       if (trimmed.startsWith("Feature:")) {
         feature.name = trimmed.replace("Feature:", "").trim();
+        feature.tags = pendingTags.map((name, i) => ({
+          id: generateId(),
+          projectId,
+          name,
+          color: TAG_COLORS[i % TAG_COLORS.length],
+        }));
+        pendingTags = [];
         inDescription = true;
         continue;
       }
@@ -215,7 +235,12 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
           name,
           type: isOutline ? "scenario_outline" : "scenario",
           position: feature.scenarios.length,
-          tags: [],
+          tags: pendingTags.map((tagName, i) => ({
+            id: generateId(),
+            projectId,
+            name: tagName,
+            color: TAG_COLORS[i % TAG_COLORS.length],
+          })),
           steps: [],
           examples: [],
           createdAt: new Date().toISOString(),
