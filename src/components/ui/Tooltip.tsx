@@ -1,0 +1,21 @@
+import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
+
+interface TooltipProps {
+  children: ReactNode;
+  content: string;
+  className?: string;
+}
+
+export function Tooltip({ children, content, className }: TooltipProps) {
+  return (
+    <div className={cn("group relative inline-flex", className)}>
+      {children}
+      <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-50">
+        <div className="rounded-lg bg-foreground px-3 py-1.5 text-xs text-background whitespace-nowrap shadow-lg">
+          {content}
+        </div>
+      </div>
+    </div>
+  );
+}
