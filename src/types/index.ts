@@ -109,3 +109,43 @@ export interface CreateTagInput {
   name: string;
   color: string;
 }
+
+// ─── GitHub Integration Types ──────────────────────────────────
+
+export interface GitHubConnection {
+  token: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  path: string; // base folder path in repo, e.g. "features" or ""
+  connectedAt: string;
+}
+
+export interface GitHubFileMapping {
+  featureId: string;
+  filePath: string;
+  sha: string;
+  lastSyncedContent: string;
+  lastSyncedAt: string;
+}
+
+export interface GitHubRepo {
+  full_name: string;
+  owner: string;
+  name: string;
+  private: boolean;
+  default_branch: string;
+}
+
+export interface GitHubBranch {
+  name: string;
+  sha: string;
+}
+
+export interface GitHubContentItem {
+  name: string;
+  path: string;
+  sha: string;
+  type: "file" | "dir";
+  size?: number;
+}

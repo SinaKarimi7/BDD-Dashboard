@@ -12,6 +12,7 @@ import {
   Menu,
   Beaker,
   BarChart3,
+  FolderGit2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store";
@@ -60,6 +61,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           label: "Analytics",
           path: `/projects/${projectId}/analytics`,
           isActive: (p: string) => isActive(`/projects/${projectId}/analytics`),
+        },
+        {
+          icon: FolderGit2,
+          label: "GitHub Sync",
+          path: `/projects/${projectId}/github`,
+          isActive: (p: string) => isActive(`/projects/${projectId}/github`),
         },
         {
           icon: Download,

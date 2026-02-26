@@ -15,6 +15,8 @@ import type {
   CreateTagInput,
   StepKeyword,
   TriageStatus,
+  GitHubConnection,
+  GitHubFileMapping,
 } from "@/types";
 import { generateId } from "@/lib/utils";
 
@@ -104,6 +106,18 @@ interface AppState {
     targetType: "feature" | "scenario",
     targetId: string,
   ) => void;
+
+  // GitHub integration
+  githubConnection: GitHubConnection | null;
+  githubFileMappings: GitHubFileMapping[];
+  setGitHubConnection: (connection: GitHubConnection | null) => void;
+  setGitHubFileMappings: (mappings: GitHubFileMapping[]) => void;
+  addGitHubFileMapping: (mapping: GitHubFileMapping) => void;
+  updateGitHubFileMapping: (
+    featureId: string,
+    updates: Partial<GitHubFileMapping>,
+  ) => void;
+  removeGitHubFileMapping: (featureId: string) => void;
 
   // Helpers
   getProject: (id: string) => Project | undefined;
@@ -668,6 +682,45 @@ export const useAppStore = create<AppState>()(
             }
             return f;
           }),
+        }));
+      },
+
+      // ── GitHub ────────────────────────────────────────────
+      githubConnection: null,
+      githubFileMappings: [],
+
+      setGitHubConnection: (connection) => {
+        set({ githubConnection: connection });
+      },
+
+      setGitHubFileMappings: (mappings) => {
+        set({ githubFileMappings: mappings });
+      },
+
+      addGitHubFileMapping: (mapping) => {
+        set((s) => ({
+          githubFileMappings: [
+            ...s.githubFileMappings.filter(
+              (m) => m.featureId !== mapping.featureId,
+            ),
+            mapping,
+          ],
+        }));
+      },
+
+      updateGitHubFileMapping: (featureId, updates) => {
+        set((s) => ({
+          githubFileMappings: s.githubFileMappings.map((m) =>
+            m.featureId === featureId ? { ...m, ...updates } : m,
+          ),
+        }));
+      },
+
+      removeGitHubFileMapping: (featureId) => {
+        set((s) => ({
+          githubFileMappings: s.githubFileMappings.filter(
+            (m) => m.featureId !== featureId,
+          ),
         }));
       },
 

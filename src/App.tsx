@@ -10,6 +10,7 @@ import { TagsPage } from "@/pages/TagsPage";
 import { ExportPage } from "@/pages/ExportPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
+import { GitHubSyncPage } from "@/pages/GitHubSyncPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,6 +45,10 @@ export default function App() {
             <Route
               path="/projects/:projectId/analytics"
               element={<AnalyticsPage />}
+            />
+            <Route
+              path="/projects/:projectId/github"
+              element={<GitHubSyncPage />}
             />
             <Route
               path="/projects/:projectId/export"
