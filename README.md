@@ -1,73 +1,152 @@
-# React + TypeScript + Vite
+# BDD Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> **Stop wrestling with feature files.** Visually create, drag-and-drop, tag, and export production-ready Cucumber features — all in your browser, in minutes.
 
-Currently, two official plugins are available:
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![React](https://img.shields.io/badge/React-19-61dafb?logo=react)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript)](https://www.typescriptlang.org)
+[![Vite](https://img.shields.io/badge/Vite-7-646cff?logo=vite)](https://vitejs.dev)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## What Is It?
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**BDD Dashboard** is an open-source, browser-based visual editor for [Gherkin](https://cucumber.io/docs/gherkin/) feature files. No installs. No accounts. No context-switching between editors, terminals, and wikis.
 
-## Expanding the ESLint configuration
+Write `Given / When / Then` steps with a clean UI, organize scenarios on a kanban-style board, color-code everything with tags, then export CI-ready `.feature` files in one click.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Features
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### ✍️ Write Features Without the Friction
+Craft Gherkin feature files using a guided visual editor. No more staring at a blank `.feature` file — just fill in steps and let the preview generate clean Gherkin in real time.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### ⚡ Import, Edit, Ship — in Minutes
+Drag and drop your existing `.feature` files straight in. The Gherkin parser validates instantly. Rearrange scenarios on a board view, tweak Scenario Outlines with inline example tables, and get back to building.
+
+### 📦 Export Clean Files Your CI Will Love
+One click for a single `.feature`. One click for a ZIP with proper folder structure. No reformatting, no surprises — production-ready Cucumber files every time.
+
+### 🗂️ More in the Box
+- **Board View** — drag-and-drop scenario cards, kanban-style
+- **Smart Tagging** — color-coded tags, filterable across your entire project
+- **Scenario Outlines** — full support with inline Examples table editor
+- **Background Steps** — define shared preconditions at the feature level
+- **Gherkin Preview** — live syntax-highlighted preview as you type
+- **Clone Scenarios** — duplicate and tweak in seconds
+
+---
+
+## Getting Started
+
+### Prerequisites
+- [Node.js](https://nodejs.org/) v18+
+- npm, pnpm, or yarn
+
+### Install & Run
+
+```bash
+# Clone the repo
+git clone https://github.com/SinaKarimi7/BDD-Dashboard.git
+cd BDD-Dashboard
+
+# Install dependencies
+npm install
+
+# Start the dev server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open [http://localhost:5173](http://localhost:5173) and start writing features.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Other Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Command | Description |
+|---|---|
+| `npm run dev` | Start development server with HMR |
+| `npm run build` | Type-check and build for production |
+| `npm run preview` | Preview the production build locally |
+| `npm run lint` | Run ESLint across the codebase |
+
+---
+
+## Project Structure
+
 ```
+src/
+├── pages/            # Route-level page components
+│   ├── LandingPage.tsx
+│   ├── DashboardPage.tsx
+│   ├── ProjectPage.tsx
+│   ├── FeatureEditorPage.tsx
+│   ├── BoardViewPage.tsx
+│   ├── TagsPage.tsx
+│   ├── ExportPage.tsx
+│   └── SettingsPage.tsx
+├── components/
+│   ├── features/     # Domain-specific components (editor, preview, tags…)
+│   ├── layout/       # App shell, sidebar, breadcrumbs
+│   └── ui/           # Reusable design system components
+├── store/            # Zustand global state
+├── lib/              # Gherkin parser, export utilities, Supabase client
+├── types/            # Shared TypeScript types
+└── design-system/    # Design tokens & CSS variables
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | React 19 + TypeScript |
+| Build | Vite 7 |
+| Styling | Tailwind CSS v4 |
+| State | Zustand |
+| Routing | React Router v7 |
+| Drag & Drop | dnd-kit |
+| Animations | Framer Motion |
+| Forms | React Hook Form + Zod |
+| Export | JSZip + FileSaver.js |
+| Icons | Lucide React |
+
+---
+
+## User Flows
+
+**New user → first feature:**
+Landing → Dashboard → New Project → New Feature → Add Scenarios → Tag → Export
+
+**Developer importing existing files:**
+Login → Project → Import `.feature` files → Edit on Board View → Export as ZIP
+
+**Team member managing scenarios:**
+Project → Feature Editor → Board View → Drag to reorder → Edit inline → Gherkin Preview → Export
+
+---
+
+## Data & Privacy
+
+Everything runs locally in your browser. **No data is sent to any server.** State is persisted in browser local storage. You own your data, period.
+
+---
+
+## Contributing
+
+Contributions are welcome! Feel free to open an issue, suggest a feature, or submit a pull request.
+
+1. Fork the repo
+2. Create your branch: `git checkout -b feat/your-feature`
+3. Commit your changes: `git commit -m 'feat: add your feature'`
+4. Push and open a PR
+
+---
+
+## License
+
+MIT © [Sina Karimi](https://github.com/SinaKarimi7)
+
+---
+
+*Built by testers, for testers. Free forever.*
