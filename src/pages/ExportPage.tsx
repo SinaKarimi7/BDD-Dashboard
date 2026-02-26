@@ -26,17 +26,17 @@ export function ExportPage() {
       />
 
       <div className="mt-4 mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">Export</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Export Center</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Download your feature files in Gherkin format
+          Grab clean, CI-ready .feature files — one click and done.
         </p>
       </div>
 
       {features.length === 0 ? (
         <EmptyState
           icon={<Download className="w-12 h-12" />}
-          title="Nothing to export"
-          description="Create some features first, then come back to export them."
+          title="Nothing to export yet"
+          description="Write a few features first, then swing back here to download them."
         />
       ) : (
         <div className="space-y-6">
@@ -50,8 +50,8 @@ export function ExportPage() {
                 <div className="flex-1">
                   <h3 className="font-semibold text-lg">Export All as ZIP</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Download all {features.length} feature files with proper
-                    folder structure in a single ZIP archive.
+                    Grab all {features.length} feature files — perfectly
+                    structured, ready to drop into your repo.
                   </p>
                   <div className="mt-2 text-xs text-muted-foreground">
                     <p>

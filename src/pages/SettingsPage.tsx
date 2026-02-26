@@ -54,6 +54,7 @@ export function SettingsPage() {
       <h1 className="text-2xl font-bold tracking-tight mt-4 mb-8">
         Project Settings
       </h1>
+      {/* Body — settings intro handled per card below */}
 
       <div className="space-y-6">
         <Card>
@@ -87,8 +88,8 @@ export function SettingsPage() {
               Danger Zone
             </h2>
             <p className="text-sm text-muted-foreground mb-4">
-              Permanently delete this project and all its features, scenarios,
-              and tags. This action cannot be undone.
+              This permanently wipes the project, every feature, every scenario,
+              and every tag. There's no going back.
             </p>
             <Button variant="destructive" onClick={() => setShowDelete(true)}>
               <Trash2 className="w-4 h-4" />

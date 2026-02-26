@@ -86,7 +86,7 @@ export function DashboardPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Your Projects</h1>
           <p className="text-muted-foreground mt-1">
-            Manage your BDD feature files and scenarios
+            Your command center for every feature file, scenario, and tag.
           </p>
         </div>
         <Button onClick={() => setShowCreate(true)}>
@@ -109,8 +109,8 @@ export function DashboardPage() {
       {filteredProjects.length === 0 && projects.length === 0 ? (
         <EmptyState
           icon={<FolderOpen className="w-12 h-12" />}
-          title="No projects yet"
-          description="Create your first project to start writing BDD feature files with an interactive editor."
+          title="It's quiet in here — let's fix that"
+          description="Spin up your first project and start writing features your whole team will actually understand."
           action={
             <Button onClick={() => setShowCreate(true)}>
               <Plus className="w-4 h-4" />
@@ -120,8 +120,8 @@ export function DashboardPage() {
         />
       ) : filteredProjects.length === 0 ? (
         <EmptyState
-          title="No matching projects"
-          description="Try adjusting your search terms."
+          title="No matches found"
+          description="Try different keywords or clear your search to see all projects."
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

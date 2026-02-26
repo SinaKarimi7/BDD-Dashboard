@@ -86,7 +86,7 @@ export function TagsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Tags</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Manage tags for organizing features and scenarios
+            Color-code and categorize your features — find anything instantly.
           </p>
         </div>
         <Button onClick={() => setShowCreate(true)}>
@@ -98,8 +98,8 @@ export function TagsPage() {
       {tags.length === 0 ? (
         <EmptyState
           icon={<Tag className="w-12 h-12" />}
-          title="No tags yet"
-          description="Tags help you organize and filter your features and scenarios."
+          title="No tags yet — let's add some color"
+          description="Tags make it dead simple to organize, filter, and find features and scenarios across your project."
           action={
             <Button onClick={() => setShowCreate(true)}>
               <Plus className="w-4 h-4" />
