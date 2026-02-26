@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, GripVertical, Trash2 } from "lucide-react";
+import { Plus, GripVertical, Trash2, Table, X } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -182,64 +182,192 @@ function SortableStepRow({ step, onUpdate, onDelete }: SortableStepRowProps) {
 
   const kwColor = KEYWORDS.find((k) => k.value === step.keyword)?.color ?? "";
 
+  const hasTable = step.dataTable && step.dataTable.length > 0;
+
+  const addDataTable = () => {
+    onUpdate({ dataTable: [["", ""]] });
+  };
+
+  const removeDataTable = () => {
+    onUpdate({ dataTable: null });
+  };
+
+  const updateCell = (row: number, col: number, value: string) => {
+    if (!step.dataTable) return;
+    const updated = step.dataTable.map((r, ri) =>
+      ri === row ? r.map((c, ci) => (ci === col ? value : c)) : [...r],
+    );
+    onUpdate({ dataTable: updated });
+  };
+
+  const addRow = () => {
+    if (!step.dataTable) return;
+    const cols = step.dataTable[0]?.length ?? 2;
+    onUpdate({ dataTable: [...step.dataTable, Array(cols).fill("")] });
+  };
+
+  const removeRow = (index: number) => {
+    if (!step.dataTable) return;
+    if (step.dataTable.length <= 1) {
+      onUpdate({ dataTable: null });
+      return;
+    }
+    onUpdate({ dataTable: step.dataTable.filter((_, i) => i !== index) });
+  };
+
+  const addColumn = () => {
+    if (!step.dataTable) return;
+    onUpdate({ dataTable: step.dataTable.map((r) => [...r, ""]) });
+  };
+
+  const removeColumn = (colIndex: number) => {
+    if (!step.dataTable) return;
+    if (step.dataTable[0]?.length <= 1) {
+      onUpdate({ dataTable: null });
+      return;
+    }
+    onUpdate({
+      dataTable: step.dataTable.map((r) =>
+        r.filter((_, ci) => ci !== colIndex),
+      ),
+    });
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent/50 transition-colors ${
+      className={`rounded-lg transition-colors ${
         isDragging ? "opacity-50 bg-accent" : ""
       }`}
     >
-      <button
-        {...attributes}
-        {...listeners}
-        className="cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-      >
-        <GripVertical className="w-3.5 h-3.5" />
-      </button>
-
-      <select
-        value={step.keyword}
-        onChange={(e) => onUpdate({ keyword: e.target.value as StepKeyword })}
-        className={`shrink-0 bg-transparent text-xs font-bold focus:outline-none cursor-pointer ${kwColor}`}
-      >
-        {KEYWORDS.map((kw) => (
-          <option key={kw.value} value={kw.value}>
-            {kw.label}
-          </option>
-        ))}
-      </select>
-
-      {editing ? (
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={save}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") save();
-            if (e.key === "Escape") setEditing(false);
-          }}
-          className="flex-1 bg-transparent border-b border-primary outline-none text-sm"
-          autoFocus
-        />
-      ) : (
-        <span
-          className="flex-1 text-sm cursor-pointer hover:text-primary transition-colors"
-          onClick={() => {
-            setText(step.text);
-            setEditing(true);
-          }}
+      {/* Step row */}
+      <div className="group flex items-center gap-2 px-2 py-1.5 hover:bg-accent/50 rounded-lg">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
         >
-          {step.text}
-        </span>
-      )}
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
 
-      <button
-        onClick={onDelete}
-        className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all cursor-pointer"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
+        <select
+          value={step.keyword}
+          onChange={(e) => onUpdate({ keyword: e.target.value as StepKeyword })}
+          className={`shrink-0 bg-transparent text-xs font-bold focus:outline-none cursor-pointer ${kwColor}`}
+        >
+          {KEYWORDS.map((kw) => (
+            <option key={kw.value} value={kw.value}>
+              {kw.label}
+            </option>
+          ))}
+        </select>
+
+        {editing ? (
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={save}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") save();
+              if (e.key === "Escape") setEditing(false);
+            }}
+            className="flex-1 bg-transparent border-b border-primary outline-none text-sm"
+            autoFocus
+          />
+        ) : (
+          <span
+            className="flex-1 text-sm cursor-pointer hover:text-primary transition-colors"
+            onClick={() => {
+              setText(step.text);
+              setEditing(true);
+            }}
+          >
+            {step.text}
+          </span>
+        )}
+
+        {/* Toggle data table button */}
+        <button
+          onClick={hasTable ? removeDataTable : addDataTable}
+          className={`shrink-0 p-1 rounded transition-colors cursor-pointer ${
+            hasTable
+              ? "text-primary hover:text-destructive"
+              : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary"
+          }`}
+          title={hasTable ? "Remove data table" : "Add data table"}
+        >
+          <Table className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          onClick={onDelete}
+          className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all cursor-pointer"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Data table */}
+      {hasTable && step.dataTable && (
+        <div className="ml-8 mr-2 mb-2 mt-0.5">
+          <div className="rounded-lg border border-border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <tbody>
+                  {step.dataTable.map((row, ri) => (
+                    <tr
+                      key={ri}
+                      className={`border-b border-border/50 last:border-b-0 ${ri === 0 ? "bg-muted/40 font-semibold" : "hover:bg-muted/20"}`}
+                    >
+                      {row.map((cell, ci) => (
+                        <td key={ci} className="p-0">
+                          <input
+                            value={cell}
+                            onChange={(e) => updateCell(ri, ci, e.target.value)}
+                            className="w-full bg-transparent px-2 py-1.5 text-xs outline-none focus:bg-accent/30 min-w-[80px]"
+                            placeholder={ri === 0 ? "Header" : "Value"}
+                          />
+                        </td>
+                      ))}
+                      <td className="w-8 p-0">
+                        <button
+                          onClick={() => removeRow(ri)}
+                          className="flex items-center justify-center w-full py-1.5 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center gap-1 px-2 py-1.5 border-t border-border bg-muted/20">
+              <button
+                onClick={addRow}
+                className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground rounded hover:bg-accent transition-colors cursor-pointer"
+              >
+                <Plus className="w-3 h-3" /> Row
+              </button>
+              <button
+                onClick={addColumn}
+                className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground rounded hover:bg-accent transition-colors cursor-pointer"
+              >
+                <Plus className="w-3 h-3" /> Column
+              </button>
+              {step.dataTable[0] && step.dataTable[0].length > 1 && (
+                <button
+                  onClick={() => removeColumn(step.dataTable!![0].length - 1)}
+                  className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-muted-foreground hover:text-destructive rounded hover:bg-accent transition-colors cursor-pointer ml-auto"
+                >
+                  <Trash2 className="w-3 h-3" /> Last column
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

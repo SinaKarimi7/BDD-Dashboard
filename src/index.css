@@ -93,3 +93,12 @@
   color: var(--color-gherkin-comment);
   font-style: italic;
 }
+
+/* ── Hide scrollbars but keep scrollability ────────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;   /* IE / Edge */
+  scrollbar-width: none;       /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;               /* Chrome / Safari */
+}

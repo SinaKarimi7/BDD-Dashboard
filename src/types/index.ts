@@ -23,6 +23,7 @@ export interface Feature {
   tags: Tag[];
   scenarios: Scenario[];
   background: Background | null;
+  headerComments?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -37,6 +38,7 @@ export interface Scenario {
   tags: Tag[];
   steps: Step[];
   examples: Examples[];
+  headerComments?: string[];
   createdAt: string;
   updatedAt: string;
 }

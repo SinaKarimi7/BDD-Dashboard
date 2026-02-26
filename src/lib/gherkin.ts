@@ -16,8 +16,35 @@ const TAG_COLORS = [
 
 // ─── Export a single Feature to Gherkin text ──────────────────
 
+/**
+ * Pad data-table rows so every column aligns.
+ * Input:  [["Field",""],["Logo",""],["Name",""]]
+ * Output: [["Field ",""],["Logo  ",""],["Name  ",""]]
+ */
+function alignTable(rows: string[][], indent: string): string[] {
+  if (rows.length === 0) return [];
+  const colCount = Math.max(...rows.map((r) => r.length));
+  const widths: number[] = Array.from({ length: colCount }, () => 0);
+  for (const row of rows) {
+    for (let i = 0; i < row.length; i++) {
+      widths[i] = Math.max(widths[i], (row[i] ?? "").length);
+    }
+  }
+  return rows.map((row) => {
+    const padded = Array.from({ length: colCount }, (_, i) =>
+      (row[i] ?? "").padEnd(widths[i]),
+    );
+    return `${indent}| ${padded.join(" | ")} |`;
+  });
+}
+
 export function featureToGherkin(feature: Feature): string {
   const lines: string[] = [];
+
+  // Header comments (e.g. copyright, author)
+  if (feature.headerComments?.length) {
+    feature.headerComments.forEach((c) => lines.push(c));
+  }
 
   // Feature-level tags
   if (feature.tags.length > 0) {
@@ -39,9 +66,7 @@ export function featureToGherkin(feature: Feature): string {
     feature.background.steps.forEach((step) => {
       lines.push(`    ${step.keyword} ${step.text}`);
       if (step.dataTable) {
-        step.dataTable.forEach((row) => {
-          lines.push(`      | ${row.join(" | ")} |`);
-        });
+        lines.push(...alignTable(step.dataTable, "      "));
       }
       if (step.docString) {
         lines.push('      """');
@@ -56,6 +81,11 @@ export function featureToGherkin(feature: Feature): string {
   feature.scenarios
     .sort((a, b) => a.position - b.position)
     .forEach((scenario) => {
+      // Scenario comments
+      if (scenario.headerComments?.length) {
+        scenario.headerComments.forEach((c) => lines.push(`  ${c}`));
+      }
+
       // Scenario tags
       if (scenario.tags.length > 0) {
         lines.push(`  ${scenario.tags.map((t) => `@${t.name}`).join(" ")}`);
@@ -71,9 +101,7 @@ export function featureToGherkin(feature: Feature): string {
         .forEach((step) => {
           lines.push(`    ${step.keyword} ${step.text}`);
           if (step.dataTable) {
-            step.dataTable.forEach((row) => {
-              lines.push(`      | ${row.join(" | ")} |`);
-            });
+            lines.push(...alignTable(step.dataTable, "      "));
           }
           if (step.docString) {
             lines.push('      """');
@@ -91,10 +119,8 @@ export function featureToGherkin(feature: Feature): string {
           lines.push("");
           lines.push(`    Examples:${ex.name ? ` ${ex.name}` : ""}`);
           if (ex.headers.length > 0) {
-            lines.push(`      | ${ex.headers.join(" | ")} |`);
-            ex.rows.forEach((row) => {
-              lines.push(`      | ${row.join(" | ")} |`);
-            });
+            const allRows = [ex.headers, ...ex.rows];
+            lines.push(...alignTable(allRows, "      "));
           }
         });
       }
@@ -120,6 +146,7 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
       tags: [],
       scenarios: [],
       background: null,
+      headerComments: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -129,6 +156,7 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
     let inDocString = false;
     let docStringBuffer: string[] = [];
     let pendingTags: string[] = [];
+    let pendingComments: string[] = [];
     let descriptionLines: string[] = [];
     let inFeatureDescription = false;
     let inExamples = false;
@@ -167,6 +195,7 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
 
       // ── Comments ──
       if (trimmed.startsWith("#")) {
+        pendingComments.push(trimmed);
         continue;
       }
 
@@ -207,7 +236,9 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
           name,
           color: TAG_COLORS[i % TAG_COLORS.length],
         }));
+        feature.headerComments = pendingComments;
         pendingTags = [];
+        pendingComments = [];
         inFeatureDescription = true;
         descriptionLines = [];
         continue;
@@ -275,11 +306,13 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
           })),
           steps: [],
           examples: [],
+          headerComments: pendingComments,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
         feature.scenarios.push(currentScenario);
         pendingTags = [];
+        pendingComments = [];
         continue;
       }
 

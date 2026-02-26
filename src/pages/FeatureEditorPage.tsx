@@ -16,6 +16,9 @@ import {
   CircleDot,
   Loader2,
   CheckCircle2,
+  Search,
+  Tags,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -83,6 +86,8 @@ export function FeatureEditorPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [editingFeatureDesc, setEditingFeatureDesc] = useState(false);
   const [featureDesc, setFeatureDesc] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterTag, setFilterTag] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -275,59 +280,150 @@ export function FeatureEditorPage() {
           </Button>
         </div>
 
-        {sortedScenarios.length === 0 ? (
-          <EmptyState
-            title="No scenarios yet"
-            description="Add your first scenario to start building this feature."
-            action={
-              <Button onClick={() => setShowAddScenario(true)}>
-                <Plus className="w-4 h-4" />
-                Add Scenario
-              </Button>
-            }
-          />
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={sortedScenarios.map((s) => s.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-3">
-                <AnimatePresence mode="popLayout">
-                  {sortedScenarios.map((scenario) => (
-                    <motion.div
-                      key={scenario.id}
-                      layout
-                      exit={{
-                        opacity: 0,
-                        height: 0,
-                        transition: {
-                          duration: duration.normal,
-                          ease: easing.apple,
-                        },
-                      }}
+        {/* Search & tag filter */}
+        {sortedScenarios.length > 0 && (
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search scenarios..."
+                className="w-full h-8 pl-8 pr-8 rounded-md border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {(() => {
+              const allTags = Array.from(
+                new Map(
+                  feature.scenarios
+                    .flatMap((s) => s.tags)
+                    .map((t) => [t.name, t]),
+                ).values(),
+              );
+              if (allTags.length === 0) return null;
+              return (
+                <div className="flex items-center gap-1 flex-wrap">
+                  <Tags className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  {allTags.map((tag) => (
+                    <button
+                      key={tag.id}
+                      onClick={() =>
+                        setFilterTag(filterTag === tag.name ? null : tag.name)
+                      }
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer border ${
+                        filterTag === tag.name
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-transparent bg-muted text-muted-foreground hover:text-foreground"
+                      }`}
                     >
-                      <SortableScenarioCard
-                        key={scenario.id}
-                        scenario={scenario}
-                        featureId={featureId!}
-                        projectId={projectId!}
-                        expanded={expandedScenarios.has(scenario.id)}
-                        onToggle={() => toggleExpanded(scenario.id)}
-                        onClone={() => cloneScenario(featureId!, scenario.id)}
-                        onDelete={() => deleteScenario(featureId!, scenario.id)}
-                      />
-                    </motion.div>
+                      @{tag.name}
+                    </button>
                   ))}
-                </AnimatePresence>
-              </div>
-            </SortableContext>
-          </DndContext>
+                  {filterTag && (
+                    <button
+                      onClick={() => setFilterTag(null)}
+                      className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer ml-1"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
         )}
+
+        {(() => {
+          const q = searchQuery.toLowerCase();
+          const filtered = sortedScenarios.filter((s) => {
+            if (
+              q &&
+              !s.name.toLowerCase().includes(q) &&
+              !s.steps.some((st) => st.text.toLowerCase().includes(q))
+            )
+              return false;
+            if (filterTag && !s.tags.some((t) => t.name === filterTag))
+              return false;
+            return true;
+          });
+
+          if (sortedScenarios.length === 0) {
+            return (
+              <EmptyState
+                title="No scenarios yet"
+                description="Add your first scenario to start building this feature."
+                action={
+                  <Button onClick={() => setShowAddScenario(true)}>
+                    <Plus className="w-4 h-4" />
+                    Add Scenario
+                  </Button>
+                }
+              />
+            );
+          }
+
+          if (filtered.length === 0) {
+            return (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                No scenarios match your search
+                {filterTag ? ` and tag @${filterTag}` : ""}.
+              </div>
+            );
+          }
+
+          return (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={filtered.map((s) => s.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  <AnimatePresence mode="popLayout">
+                    {filtered.map((scenario) => (
+                      <motion.div
+                        key={scenario.id}
+                        layout
+                        exit={{
+                          opacity: 0,
+                          height: 0,
+                          transition: {
+                            duration: duration.normal,
+                            ease: easing.apple,
+                          },
+                        }}
+                      >
+                        <SortableScenarioCard
+                          key={scenario.id}
+                          scenario={scenario}
+                          featureId={featureId!}
+                          projectId={projectId!}
+                          expanded={expandedScenarios.has(scenario.id)}
+                          onToggle={() => toggleExpanded(scenario.id)}
+                          onClone={() => cloneScenario(featureId!, scenario.id)}
+                          onDelete={() =>
+                            deleteScenario(featureId!, scenario.id)
+                          }
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </SortableContext>
+            </DndContext>
+          );
+        })()}
 
         {/* Add Scenario Modal */}
         <Modal

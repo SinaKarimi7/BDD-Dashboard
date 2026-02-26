@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronRight,
   LayoutGrid,
+  ChevronsUpDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/store";
@@ -126,6 +127,26 @@ export function ProjectBoardPage() {
               Overview of all scenarios across all features.
             </p>
           </div>
+          {features.length > 0 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  setExpandedFeatures(new Set(features.map((f) => f.id)))
+                }
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md border border-input bg-background hover:bg-accent transition-colors cursor-pointer text-muted-foreground hover:text-foreground"
+              >
+                <ChevronsUpDown className="w-3.5 h-3.5" />
+                Expand All
+              </button>
+              <button
+                onClick={() => setExpandedFeatures(new Set())}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md border border-input bg-background hover:bg-accent transition-colors cursor-pointer text-muted-foreground hover:text-foreground"
+              >
+                <ChevronsUpDown className="w-3.5 h-3.5 rotate-90" />
+                Collapse All
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Stats bar */}

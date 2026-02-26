@@ -134,7 +134,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1 scrollbar-hide">
           {mainNav.map((item) => (
             <Link
               key={item.path}
@@ -183,7 +183,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   <p className="px-3 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Features ({features.length})
                   </p>
-                  <div className="space-y-0.5 max-h-[300px] overflow-y-auto">
+                  <div className="space-y-0.5 max-h-[300px] overflow-y-auto scrollbar-hide">
                     {features.map((feature) => (
                       <Link
                         key={feature.id}

@@ -954,31 +954,42 @@ function ConnectionTab({
           </Card>
 
           {/* OAuth — secondary */}
-          {oauthAvailable && (
-            <>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    or
-                  </span>
-                </div>
+          <>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border" />
               </div>
-              <Button
-                variant="outline"
-                onClick={handleOAuth}
-                className="w-full gap-2"
-              >
-                <Github className="w-4 h-4" />
-                Connect with GitHub OAuth
-                <span className="ml-auto text-xs text-muted-foreground font-normal">
-                  personal repos only
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  or
                 </span>
-              </Button>
-            </>
-          )}
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={handleOAuth}
+              className="w-full gap-2"
+            >
+              <Github className="w-4 h-4" />
+              Connect with GitHub OAuth
+              <span className="ml-auto text-xs text-muted-foreground font-normal">
+                personal repos only
+              </span>
+            </Button>
+            {!oauthAvailable && (
+              <p className="text-xs text-muted-foreground text-center -mt-2">
+                OAuth requires{" "}
+                <code className="text-[11px] bg-muted px-1 py-0.5 rounded">
+                  VITE_GITHUB_CLIENT_ID
+                </code>{" "}
+                env variable. See{" "}
+                <code className="text-[11px] bg-muted px-1 py-0.5 rounded">
+                  .env.example
+                </code>
+                .
+              </p>
+            )}
+          </>
         </>
       )}
 
