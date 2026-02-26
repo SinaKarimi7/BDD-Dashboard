@@ -27,16 +27,22 @@ import { PageTransition } from "@/components/animation";
 import { staggerContainer, staggerItem, easing, duration } from "@/lib/motion";
 
 const TAG_COLORS = [
-  "#22c55e",
   "#3b82f6",
-  "#f59e0b",
   "#ef4444",
+  "#22c55e",
+  "#f59e0b",
   "#8b5cf6",
   "#ec4899",
   "#06b6d4",
   "#f97316",
   "#14b8a6",
   "#6366f1",
+  "#e11d48",
+  "#0891b2",
+  "#7c3aed",
+  "#ea580c",
+  "#059669",
+  "#d946ef",
 ];
 
 export function TagsPage() {
@@ -84,6 +90,10 @@ export function TagsPage() {
     });
     return count;
   };
+
+  const sortedTags = [...tags].sort(
+    (a, b) => getUsageCount(b.id) - getUsageCount(a.id),
+  );
 
   const getTagUsages = (tagId: string) => {
     const usages: {
@@ -158,7 +168,7 @@ export function TagsPage() {
             animate="animate"
           >
             <AnimatePresence mode="popLayout">
-              {tags.map((tag, idx) => (
+              {sortedTags.map((tag, idx) => (
                 <motion.div
                   key={tag.id}
                   variants={staggerItem}

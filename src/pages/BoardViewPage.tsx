@@ -18,7 +18,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DndContext,
-  closestCenter,
+  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
@@ -26,13 +26,8 @@ import {
   type DragStartEvent,
   DragOverlay,
   useDroppable,
+  useDraggable,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { useAppStore } from "@/store";
 import type { Scenario, TriageStatus } from "@/types";
 import {
@@ -134,29 +129,13 @@ export function BoardViewPage() {
     const scenarioId = active.id as string;
     const overId = over.id as string;
 
-    // Check if dropped on a column
+    // Dropped on a column
     const targetColumn = COLUMNS.find((c) => c.status === overId);
     if (targetColumn) {
       const scenario = allScenarios.find((s) => s.id === scenarioId);
       if (scenario && (scenario.status || "backlog") !== targetColumn.status) {
         updateScenario(featureId!, scenarioId, {
           status: targetColumn.status,
-        });
-      }
-      return;
-    }
-
-    // Check if dropped on another scenario — move to that scenario's column
-    const overScenario = allScenarios.find((s) => s.id === overId);
-    if (overScenario) {
-      const draggedScenario = allScenarios.find((s) => s.id === scenarioId);
-      if (
-        draggedScenario &&
-        (draggedScenario.status || "backlog") !==
-          (overScenario.status || "backlog")
-      ) {
-        updateScenario(featureId!, scenarioId, {
-          status: overScenario.status || "backlog",
         });
       }
     }
@@ -244,7 +223,7 @@ export function BoardViewPage() {
         ) : (
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCenter}
+            collisionDetection={pointerWithin}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
@@ -367,30 +346,25 @@ function KanbanColumn({
       </div>
 
       {/* Cards */}
-      <SortableContext
-        items={scenarios.map((s) => s.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        <div className="flex-1 p-2 space-y-2">
-          {scenarios.length === 0 ? (
-            <div className="flex items-center justify-center h-20 text-xs text-muted-foreground border-2 border-dashed border-border rounded-lg">
-              Drop here
-            </div>
-          ) : (
-            scenarios.map((scenario) => (
-              <KanbanCard
-                key={scenario.id}
-                scenario={scenario}
-                featureId={featureId}
-                projectId={projectId}
-                onClone={() => onClone(scenario.id)}
-                onDelete={() => onDelete(scenario.id)}
-                onEdit={onEdit}
-              />
-            ))
-          )}
-        </div>
-      </SortableContext>
+      <div className="flex-1 p-2 space-y-2">
+        {scenarios.length === 0 ? (
+          <div className="flex items-center justify-center h-20 text-xs text-muted-foreground border-2 border-dashed border-border rounded-lg">
+            Drop here
+          </div>
+        ) : (
+          scenarios.map((scenario) => (
+            <KanbanCard
+              key={scenario.id}
+              scenario={scenario}
+              featureId={featureId}
+              projectId={projectId}
+              onClone={() => onClone(scenario.id)}
+              onDelete={() => onDelete(scenario.id)}
+              onEdit={onEdit}
+            />
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -407,20 +381,10 @@ interface KanbanCardProps {
 }
 
 function KanbanCard({ scenario, onClone, onDelete, onEdit }: KanbanCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: scenario.id });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: scenario.id,
+  });
   const [expanded, setExpanded] = useState(false);
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
 
   const keyword = scenario.type === "scenario_outline" ? "Outline" : "Scenario";
   const stepsByKeyword = scenario.steps.reduce(
@@ -434,7 +398,6 @@ function KanbanCard({ scenario, onClone, onDelete, onEdit }: KanbanCardProps) {
   return (
     <div
       ref={setNodeRef}
-      style={style}
       className={`group relative rounded-lg border bg-card shadow-sm transition-all ${
         isDragging
           ? "shadow-xl border-primary opacity-50 scale-[1.02]"
@@ -447,7 +410,7 @@ function KanbanCard({ scenario, onClone, onDelete, onEdit }: KanbanCardProps) {
             <button
               {...attributes}
               {...listeners}
-              className="cursor-grab text-muted-foreground hover:text-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="cursor-grab text-muted-foreground hover:text-foreground shrink-0 transition-opacity"
             >
               <GripVertical className="w-3.5 h-3.5" />
             </button>
@@ -475,7 +438,10 @@ function KanbanCard({ scenario, onClone, onDelete, onEdit }: KanbanCardProps) {
           </DropdownMenu>
         </div>
 
-        <h3 className="font-medium text-sm leading-snug mb-1.5">
+        <h3
+          className="font-medium text-sm leading-snug mb-1.5 cursor-pointer hover:text-primary transition-colors"
+          onClick={onEdit}
+        >
           {scenario.name}
         </h3>
 

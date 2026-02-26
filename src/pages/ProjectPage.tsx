@@ -8,6 +8,7 @@ import {
   Trash2,
   Edit3,
   Download,
+  AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/store";
@@ -54,6 +55,10 @@ export function ProjectPage() {
   const [description, setDescription] = useState("");
   const [folderPath, setFolderPath] = useState("");
   const [search, setSearch] = useState("");
+  const [pendingImport, setPendingImport] = useState<typeof features | null>(
+    null,
+  );
+  const [duplicateNames, setDuplicateNames] = useState<string[]>([]);
 
   if (!project) {
     return (
@@ -110,11 +115,48 @@ export function ProjectPage() {
 
   const handleImport = useCallback(
     (imported: typeof features) => {
-      importFeatures(projectId!, imported);
-      setShowImport(false);
+      const existingNames = new Set(features.map((f) => f.name.toLowerCase()));
+      const dupes = imported.filter((f) =>
+        existingNames.has(f.name.toLowerCase()),
+      );
+
+      if (dupes.length > 0) {
+        setPendingImport(imported);
+        setDuplicateNames(dupes.map((f) => f.name));
+        setShowImport(false);
+      } else {
+        importFeatures(projectId!, imported);
+        setShowImport(false);
+      }
     },
-    [projectId, importFeatures],
+    [projectId, importFeatures, features],
   );
+
+  const handleImportSkipDuplicates = () => {
+    if (!pendingImport) return;
+    const existingNames = new Set(features.map((f) => f.name.toLowerCase()));
+    const nonDupes = pendingImport.filter(
+      (f) => !existingNames.has(f.name.toLowerCase()),
+    );
+    if (nonDupes.length > 0) {
+      importFeatures(projectId!, nonDupes);
+    }
+    setPendingImport(null);
+    setDuplicateNames([]);
+  };
+
+  const handleImportOverwrite = () => {
+    if (!pendingImport) return;
+    const dupeNameSet = new Set(duplicateNames.map((n) => n.toLowerCase()));
+    features.forEach((f) => {
+      if (dupeNameSet.has(f.name.toLowerCase())) {
+        deleteFeature(f.id);
+      }
+    });
+    importFeatures(projectId!, pendingImport);
+    setPendingImport(null);
+    setDuplicateNames([]);
+  };
 
   return (
     <PageTransition>
@@ -410,6 +452,72 @@ export function ProjectPage() {
           size="lg"
         >
           <FileDropZone projectId={projectId!} onImport={handleImport} />
+        </Modal>
+
+        {/* Duplicate Resolution Modal */}
+        <Modal
+          open={!!pendingImport}
+          onClose={() => {
+            setPendingImport(null);
+            setDuplicateNames([]);
+          }}
+          title="Duplicate Features Found"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium text-amber-600 dark:text-amber-400">
+                  {duplicateNames.length} feature
+                  {duplicateNames.length !== 1 ? "s" : ""} already exist
+                  {duplicateNames.length === 1 ? "s" : ""} in this project
+                </p>
+                <p className="text-muted-foreground mt-1">
+                  {pendingImport &&
+                  pendingImport.length - duplicateNames.length > 0
+                    ? `${pendingImport.length - duplicateNames.length} new feature${pendingImport.length - duplicateNames.length !== 1 ? "s" : ""} will be imported regardless.`
+                    : "All imported features are duplicates."}
+                </p>
+              </div>
+            </div>
+
+            <div className="max-h-[200px] overflow-y-auto space-y-1.5">
+              {duplicateNames.map((name) => (
+                <div
+                  key={name}
+                  className="flex items-center gap-2 text-sm rounded-md border border-border px-3 py-2"
+                >
+                  <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="truncate">{name}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPendingImport(null);
+                  setDuplicateNames([]);
+                }}
+              >
+                Cancel
+              </Button>
+              {pendingImport &&
+                pendingImport.length > duplicateNames.length && (
+                  <Button
+                    variant="outline"
+                    onClick={handleImportSkipDuplicates}
+                  >
+                    Skip Duplicates
+                  </Button>
+                )}
+              <Button onClick={handleImportOverwrite}>
+                Overwrite Existing
+              </Button>
+            </div>
+          </div>
         </Modal>
       </div>
     </PageTransition>
