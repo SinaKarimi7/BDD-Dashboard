@@ -1,0 +1,386 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   BDD Dashboard — Design System CSS Variables
+   Apple-inspired minimal design language
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Primitive Palette ───────────────────────────────────────────────────── */
+:root {
+  /* Gray */
+  --ds-gray-50:  #F9FAFB;
+  --ds-gray-100: #F3F4F6;
+  --ds-gray-200: #E5E7EB;
+  --ds-gray-300: #D1D5DB;
+  --ds-gray-400: #9CA3AF;
+  --ds-gray-500: #6B7280;
+  --ds-gray-600: #4B5563;
+  --ds-gray-700: #374151;
+  --ds-gray-800: #1F2937;
+  --ds-gray-900: #111827;
+  --ds-gray-950: #030712;
+
+  /* Green (Primary) */
+  --ds-green-50:  #F0FDF4;
+  --ds-green-100: #DCFCE7;
+  --ds-green-200: #BBF7D0;
+  --ds-green-300: #86EFAC;
+  --ds-green-400: #4ADE80;
+  --ds-green-500: #22C55E;
+  --ds-green-600: #16A34A;
+  --ds-green-700: #15803D;
+  --ds-green-800: #166534;
+  --ds-green-900: #14532D;
+
+  /* Blue (Info / Gherkin Tags) */
+  --ds-blue-50:  #EFF6FF;
+  --ds-blue-100: #DBEAFE;
+  --ds-blue-200: #BFDBFE;
+  --ds-blue-300: #93C5FD;
+  --ds-blue-400: #60A5FA;
+  --ds-blue-500: #3B82F6;
+  --ds-blue-600: #2563EB;
+  --ds-blue-700: #1D4ED8;
+  --ds-blue-800: #1E40AF;
+  --ds-blue-900: #1E3A8A;
+
+  /* Red (Destructive / Error) */
+  --ds-red-50:  #FEF2F2;
+  --ds-red-100: #FEE2E2;
+  --ds-red-200: #FECACA;
+  --ds-red-300: #FCA5A5;
+  --ds-red-400: #F87171;
+  --ds-red-500: #EF4444;
+  --ds-red-600: #DC2626;
+  --ds-red-700: #B91C1C;
+  --ds-red-800: #991B1B;
+  --ds-red-900: #7F1D1D;
+
+  /* Amber (Warning) */
+  --ds-amber-50:  #FFFBEB;
+  --ds-amber-100: #FEF3C7;
+  --ds-amber-200: #FDE68A;
+  --ds-amber-300: #FCD34D;
+  --ds-amber-400: #FBBF24;
+  --ds-amber-500: #F59E0B;
+  --ds-amber-600: #D97706;
+  --ds-amber-700: #B45309;
+  --ds-amber-800: #92400E;
+  --ds-amber-900: #78350F;
+}
+
+/* ─── Typography ──────────────────────────────────────────────────────────── */
+:root {
+  --ds-font-sans:  'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  --ds-font-mono:  'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace;
+
+  /* Display — 48px */
+  --ds-text-display:        3rem;
+  --ds-leading-display:     1.08;
+  --ds-tracking-display:    -0.025em;
+  --ds-weight-display:      700;
+
+  /* H1 — 36px */
+  --ds-text-h1:             2.25rem;
+  --ds-leading-h1:          1.11;
+  --ds-tracking-h1:         -0.025em;
+  --ds-weight-h1:           700;
+
+  /* H2 — 30px */
+  --ds-text-h2:             1.875rem;
+  --ds-leading-h2:          1.2;
+  --ds-tracking-h2:         -0.02em;
+  --ds-weight-h2:           600;
+
+  /* H3 — 24px */
+  --ds-text-h3:             1.5rem;
+  --ds-leading-h3:          1.25;
+  --ds-tracking-h3:         -0.015em;
+  --ds-weight-h3:           600;
+
+  /* H4 — 20px */
+  --ds-text-h4:             1.25rem;
+  --ds-leading-h4:          1.3;
+  --ds-tracking-h4:         -0.01em;
+  --ds-weight-h4:           600;
+
+  /* Body — 16px */
+  --ds-text-body:           1rem;
+  --ds-leading-body:        1.5;
+  --ds-tracking-body:       0em;
+  --ds-weight-body:         400;
+
+  /* Body Small — 14px */
+  --ds-text-body-sm:        0.875rem;
+  --ds-leading-body-sm:     1.43;
+  --ds-tracking-body-sm:    0em;
+  --ds-weight-body-sm:      400;
+
+  /* Caption — 12px */
+  --ds-text-caption:        0.75rem;
+  --ds-leading-caption:     1.33;
+  --ds-tracking-caption:    0.01em;
+  --ds-weight-caption:      500;
+
+  /* Overline — 11px */
+  --ds-text-overline:       0.6875rem;
+  --ds-leading-overline:    1.45;
+  --ds-tracking-overline:   0.06em;
+  --ds-weight-overline:     600;
+}
+
+/* ─── Spacing (8px grid) ──────────────────────────────────────────────────── */
+:root {
+  --ds-space-0:    0px;
+  --ds-space-0-5:  2px;
+  --ds-space-1:    4px;
+  --ds-space-1-5:  6px;
+  --ds-space-2:    8px;
+  --ds-space-2-5:  10px;
+  --ds-space-3:    12px;
+  --ds-space-4:    16px;
+  --ds-space-5:    20px;
+  --ds-space-6:    24px;
+  --ds-space-8:    32px;
+  --ds-space-10:   40px;
+  --ds-space-12:   48px;
+  --ds-space-16:   64px;
+  --ds-space-20:   80px;
+  --ds-space-24:   96px;
+}
+
+/* ─── Sizing ──────────────────────────────────────────────────────────────── */
+:root {
+  --ds-sidebar-expanded:  280px;
+  --ds-sidebar-collapsed: 64px;
+  --ds-topbar-height:     56px;
+  --ds-icon-sm:           16px;
+  --ds-icon-md:           20px;
+  --ds-icon-lg:           24px;
+  --ds-touch-target:      44px;
+  --ds-input-h:           40px;
+  --ds-input-h-sm:        32px;
+  --ds-input-h-lg:        48px;
+  --ds-btn-h:             40px;
+  --ds-btn-h-sm:          32px;
+  --ds-btn-h-lg:          48px;
+}
+
+/* ─── Border Radius ───────────────────────────────────────────────────────── */
+:root {
+  --ds-radius-none:  0px;
+  --ds-radius-sm:    6px;
+  --ds-radius-md:    8px;
+  --ds-radius-lg:    12px;
+  --ds-radius-xl:    16px;
+  --ds-radius-2xl:   20px;
+  --ds-radius-full:  9999px;
+}
+
+/* ─── Shadows (Light) ─────────────────────────────────────────────────────── */
+:root {
+  --ds-shadow-xs:    0 1px 2px 0 rgba(0,0,0,0.03);
+  --ds-shadow-sm:    0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.06);
+  --ds-shadow-md:    0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
+  --ds-shadow-lg:    0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.04);
+  --ds-shadow-xl:    0 20px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.04);
+  --ds-shadow-2xl:   0 25px 50px -12px rgba(0,0,0,0.15);
+  --ds-shadow-inner: inset 0 2px 4px 0 rgba(0,0,0,0.04);
+}
+
+/* ─── Animation ───────────────────────────────────────────────────────────── */
+:root {
+  --ds-duration-instant:  50ms;
+  --ds-duration-fast:     100ms;
+  --ds-duration-normal:   200ms;
+  --ds-duration-slow:     300ms;
+  --ds-duration-slower:   500ms;
+
+  --ds-ease-default:      cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ds-ease-in:           cubic-bezier(0.42, 0, 1, 1);
+  --ds-ease-out:          cubic-bezier(0, 0, 0.58, 1);
+  --ds-ease-in-out:       cubic-bezier(0.42, 0, 0.58, 1);
+  --ds-ease-spring:       cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ds-ease-apple:        cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Z-Index ─────────────────────────────────────────────────────────────── */
+:root {
+  --ds-z-dropdown:  50;
+  --ds-z-sticky:    40;
+  --ds-z-overlay:   50;
+  --ds-z-modal:     50;
+  --ds-z-popover:   50;
+  --ds-z-toast:     60;
+  --ds-z-tooltip:   70;
+}
+
+/* ─── Breakpoints (reference only — use in @media) ────────────────────────── */
+/* sm:  640px   — Mobile landscape
+   md:  768px   — Tablet portrait
+   lg:  1024px  — Tablet landscape / sidebar breakpoint
+   xl:  1280px  — Desktop
+   2xl: 1536px  — Large desktop */
+
+/* ─── Opacity ─────────────────────────────────────────────────────────────── */
+:root {
+  --ds-opacity-disabled: 0.5;
+  --ds-opacity-hover:    0.9;
+  --ds-opacity-pressed:  0.85;
+  --ds-opacity-overlay:  0.5;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK THEME
+   Light theme defaults are defined in @theme (index.css).
+   These overrides apply via media query or data-theme attribute.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-background:           #09090B;
+    --color-foreground:           var(--ds-gray-50);
+
+    --color-card:                 #0F0F12;
+    --color-card-foreground:      var(--ds-gray-50);
+
+    --color-popover:              #1A1A1F;
+    --color-popover-foreground:   var(--ds-gray-50);
+
+    --color-primary:              var(--ds-green-500);
+    --color-primary-hover:        var(--ds-green-400);
+    --color-primary-foreground:   var(--ds-gray-950);
+    --color-primary-muted:        rgba(34, 197, 94, 0.1);
+
+    --color-secondary:            #1A1A1F;
+    --color-secondary-hover:      #242429;
+    --color-secondary-foreground: var(--ds-gray-100);
+
+    --color-muted:                #1A1A1F;
+    --color-muted-foreground:     var(--ds-gray-400);
+
+    --color-accent:               #1A1A1F;
+    --color-accent-foreground:    var(--ds-gray-100);
+
+    --color-destructive:          var(--ds-red-500);
+    --color-destructive-hover:    var(--ds-red-400);
+    --color-destructive-foreground: #FFFFFF;
+    --color-destructive-muted:    rgba(239, 68, 68, 0.1);
+
+    --color-success:              var(--ds-green-400);
+    --color-success-foreground:   var(--ds-gray-950);
+    --color-success-muted:        rgba(34, 197, 94, 0.1);
+
+    --color-warning:              var(--ds-amber-400);
+    --color-warning-foreground:   var(--ds-gray-950);
+    --color-warning-muted:        rgba(245, 158, 11, 0.1);
+
+    --color-info:                 var(--ds-blue-400);
+    --color-info-foreground:      var(--ds-gray-950);
+    --color-info-muted:           rgba(59, 130, 246, 0.1);
+
+    --color-border:               #1F1F24;
+    --color-input:                #1F1F24;
+    --color-ring:                 var(--ds-green-500);
+
+    --color-sidebar:              #0C0C0F;
+    --color-sidebar-foreground:   var(--ds-gray-100);
+    --color-sidebar-border:       #1F1F24;
+
+    --color-overlay:              rgba(0, 0, 0, 0.7);
+
+    --color-gherkin-keyword:      var(--ds-green-400);
+    --color-gherkin-tag:          var(--ds-blue-400);
+    --color-gherkin-comment:      var(--ds-gray-500);
+
+    /* Darker shadows for dark mode */
+    --ds-shadow-xs:    0 1px 2px 0 rgba(0,0,0,0.2);
+    --ds-shadow-sm:    0 1px 3px 0 rgba(0,0,0,0.3), 0 1px 2px -1px rgba(0,0,0,0.3);
+    --ds-shadow-md:    0 4px 6px -1px rgba(0,0,0,0.35), 0 2px 4px -2px rgba(0,0,0,0.25);
+    --ds-shadow-lg:    0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -4px rgba(0,0,0,0.2);
+    --ds-shadow-xl:    0 20px 25px -5px rgba(0,0,0,0.4), 0 8px 10px -6px rgba(0,0,0,0.2);
+    --ds-shadow-2xl:   0 25px 50px -12px rgba(0,0,0,0.6);
+    --ds-shadow-inner: inset 0 2px 4px 0 rgba(0,0,0,0.2);
+  }
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-background:           #09090B;
+  --color-foreground:           var(--ds-gray-50);
+
+  --color-card:                 #0F0F12;
+  --color-card-foreground:      var(--ds-gray-50);
+
+  --color-popover:              #1A1A1F;
+  --color-popover-foreground:   var(--ds-gray-50);
+
+  --color-primary:              var(--ds-green-500);
+  --color-primary-hover:        var(--ds-green-400);
+  --color-primary-foreground:   var(--ds-gray-950);
+  --color-primary-muted:        rgba(34, 197, 94, 0.1);
+
+  --color-secondary:            #1A1A1F;
+  --color-secondary-hover:      #242429;
+  --color-secondary-foreground: var(--ds-gray-100);
+
+  --color-muted:                #1A1A1F;
+  --color-muted-foreground:     var(--ds-gray-400);
+
+  --color-accent:               #1A1A1F;
+  --color-accent-foreground:    var(--ds-gray-100);
+
+  --color-destructive:          var(--ds-red-500);
+  --color-destructive-hover:    var(--ds-red-400);
+  --color-destructive-foreground: #FFFFFF;
+  --color-destructive-muted:    rgba(239, 68, 68, 0.1);
+
+  --color-success:              var(--ds-green-400);
+  --color-success-foreground:   var(--ds-gray-950);
+  --color-success-muted:        rgba(34, 197, 94, 0.1);
+
+  --color-warning:              var(--ds-amber-400);
+  --color-warning-foreground:   var(--ds-gray-950);
+  --color-warning-muted:        rgba(245, 158, 11, 0.1);
+
+  --color-info:                 var(--ds-blue-400);
+  --color-info-foreground:      var(--ds-gray-950);
+  --color-info-muted:           rgba(59, 130, 246, 0.1);
+
+  --color-border:               #1F1F24;
+  --color-input:                #1F1F24;
+  --color-ring:                 var(--ds-green-500);
+
+  --color-sidebar:              #0C0C0F;
+  --color-sidebar-foreground:   var(--ds-gray-100);
+  --color-sidebar-border:       #1F1F24;
+
+  --color-overlay:              rgba(0, 0, 0, 0.7);
+
+  --color-gherkin-keyword:      var(--ds-green-400);
+  --color-gherkin-tag:          var(--ds-blue-400);
+  --color-gherkin-comment:      var(--ds-gray-500);
+
+  --ds-shadow-xs:    0 1px 2px 0 rgba(0,0,0,0.2);
+  --ds-shadow-sm:    0 1px 3px 0 rgba(0,0,0,0.3), 0 1px 2px -1px rgba(0,0,0,0.3);
+  --ds-shadow-md:    0 4px 6px -1px rgba(0,0,0,0.35), 0 2px 4px -2px rgba(0,0,0,0.25);
+  --ds-shadow-lg:    0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -4px rgba(0,0,0,0.2);
+  --ds-shadow-xl:    0 20px 25px -5px rgba(0,0,0,0.4), 0 8px 10px -6px rgba(0,0,0,0.2);
+  --ds-shadow-2xl:   0 25px 50px -12px rgba(0,0,0,0.6);
+  --ds-shadow-inner: inset 0 2px 4px 0 rgba(0,0,0,0.2);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REDUCED MOTION
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ds-duration-instant:  0ms;
+    --ds-duration-fast:     0ms;
+    --ds-duration-normal:   0ms;
+    --ds-duration-slow:     0ms;
+    --ds-duration-slower:   0ms;
+  }
+}

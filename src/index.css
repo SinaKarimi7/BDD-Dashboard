@@ -1,29 +1,70 @@
 @import "tailwindcss";
+@import "./design-system/variables.css";
 
 @theme {
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(222.2 84% 4.9%);
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(222.2 84% 4.9%);
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(222.2 84% 4.9%);
-  --color-primary: hsl(142.1 76.2% 36.3%);
-  --color-primary-foreground: hsl(355.7 100% 97.3%);
-  --color-secondary: hsl(210 40% 96.1%);
-  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
-  --color-muted: hsl(210 40% 96.1%);
-  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
-  --color-accent: hsl(210 40% 96.1%);
-  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
-  --color-destructive: hsl(0 84.2% 60.2%);
-  --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(214.3 31.8% 91.4%);
-  --color-input: hsl(214.3 31.8% 91.4%);
-  --color-ring: hsl(142.1 76.2% 36.3%);
+  /* ── Semantic Colors (Light mode defaults) ───────────────────────────── */
+  /* Dark mode overrides live in design-system/variables.css               */
+
+  --color-background:             #FFFFFF;
+  --color-foreground:             #030712;
+
+  --color-card:                   #FFFFFF;
+  --color-card-foreground:        #030712;
+
+  --color-popover:                #FFFFFF;
+  --color-popover-foreground:     #030712;
+
+  --color-primary:                #16A34A;
+  --color-primary-hover:          #15803D;
+  --color-primary-foreground:     #FFFFFF;
+  --color-primary-muted:          rgba(22, 163, 74, 0.08);
+
+  --color-secondary:              #F3F4F6;
+  --color-secondary-hover:        #E5E7EB;
+  --color-secondary-foreground:   #111827;
+
+  --color-muted:                  #F3F4F6;
+  --color-muted-foreground:       #6B7280;
+
+  --color-accent:                 #F3F4F6;
+  --color-accent-foreground:      #111827;
+
+  --color-destructive:            #EF4444;
+  --color-destructive-hover:      #DC2626;
+  --color-destructive-foreground: #FFFFFF;
+  --color-destructive-muted:      rgba(239, 68, 68, 0.08);
+
+  --color-success:                #22C55E;
+  --color-success-foreground:     #FFFFFF;
+  --color-success-muted:          #F0FDF4;
+
+  --color-warning:                #F59E0B;
+  --color-warning-foreground:     #FFFFFF;
+  --color-warning-muted:          #FFFBEB;
+
+  --color-info:                   #3B82F6;
+  --color-info-foreground:        #FFFFFF;
+  --color-info-muted:             #EFF6FF;
+
+  --color-border:                 #E5E7EB;
+  --color-input:                  #E5E7EB;
+  --color-ring:                   #16A34A;
+
+  --color-sidebar:                #F9FAFB;
+  --color-sidebar-foreground:     #111827;
+  --color-sidebar-border:         #E5E7EB;
+
+  --color-overlay:                rgba(0, 0, 0, 0.5);
+
+  --color-gherkin-keyword:        #16A34A;
+  --color-gherkin-tag:            #3B82F6;
+  --color-gherkin-comment:        #9CA3AF;
+
   --radius: 0.75rem;
-  --color-sidebar: hsl(210 40% 98%);
-  --color-sidebar-foreground: hsl(222.2 47.4% 11.2%);
-  --color-sidebar-border: hsl(214.3 31.8% 91.4%);
+
+  /* ── Typography ──────────────────────────────────────────────────────── */
+  --font-sans: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace;
 }
 
 @layer base {
@@ -33,20 +74,22 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 }
 
+/* ── Gherkin Syntax Highlighting ───────────────────────────────────────── */
 .gherkin-keyword {
   font-weight: 700;
-  color: var(--color-primary);
+  color: var(--color-gherkin-keyword);
 }
 .gherkin-tag {
-  color: hsl(217 91% 60%);
+  color: var(--color-gherkin-tag);
   font-weight: 500;
 }
 .gherkin-comment {
-  color: var(--color-muted-foreground);
+  color: var(--color-gherkin-comment);
   font-style: italic;
 }
