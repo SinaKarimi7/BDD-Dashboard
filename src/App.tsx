@@ -9,6 +9,7 @@ import { BoardViewPage } from "@/pages/BoardViewPage";
 import { TagsPage } from "@/pages/TagsPage";
 import { ExportPage } from "@/pages/ExportPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { AnalyticsPage } from "@/pages/AnalyticsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,6 +41,10 @@ export default function App() {
               element={<BoardViewPage />}
             />
             <Route path="/projects/:projectId/tags" element={<TagsPage />} />
+            <Route
+              path="/projects/:projectId/analytics"
+              element={<AnalyticsPage />}
+            />
             <Route
               path="/projects/:projectId/export"
               element={<ExportPage />}

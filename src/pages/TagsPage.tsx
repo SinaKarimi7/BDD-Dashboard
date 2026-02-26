@@ -1,9 +1,18 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
-import { Plus, Edit3, Trash2, Tag } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
+import {
+  Plus,
+  Edit3,
+  Trash2,
+  Tag,
+  FileText,
+  FlaskConical,
+  X,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/store";
 import { useShallow } from "zustand/react/shallow";
+import type { Tag as TagType } from "@/types";
 import {
   Button,
   Badge,
@@ -32,6 +41,7 @@ const TAG_COLORS = [
 
 export function TagsPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
   const project = useAppStore((s) => s.getProject(projectId!));
   const tags = useAppStore(useShallow((s) => s.getProjectTags(projectId!)));
   const features = useAppStore(
@@ -43,6 +53,7 @@ export function TagsPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingTag, setEditingTag] = useState<string | null>(null);
+  const [selectedTag, setSelectedTag] = useState<TagType | null>(null);
   const [name, setName] = useState("");
   const [color, setColor] = useState(TAG_COLORS[0]);
 
@@ -72,6 +83,35 @@ export function TagsPage() {
       });
     });
     return count;
+  };
+
+  const getTagUsages = (tagId: string) => {
+    const usages: {
+      type: "feature" | "scenario";
+      featureId: string;
+      featureName: string;
+      scenarioName?: string;
+    }[] = [];
+    features.forEach((f) => {
+      if (f.tags.some((t) => t.id === tagId)) {
+        usages.push({
+          type: "feature",
+          featureId: f.id,
+          featureName: f.name,
+        });
+      }
+      f.scenarios.forEach((s) => {
+        if (s.tags.some((t) => t.id === tagId)) {
+          usages.push({
+            type: "scenario",
+            featureId: f.id,
+            featureName: f.name,
+            scenarioName: s.name,
+          });
+        }
+      });
+    });
+    return usages;
   };
 
   return (
@@ -131,19 +171,22 @@ export function TagsPage() {
                 >
                   <Card>
                     <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                      <button
+                        className="flex items-center gap-3 text-left cursor-pointer hover:opacity-80 transition-opacity flex-1 min-w-0"
+                        onClick={() => setSelectedTag(tag)}
+                      >
                         <div
                           className="w-4 h-4 rounded-full shrink-0"
                           style={{ backgroundColor: tag.color }}
                         />
-                        <div>
+                        <div className="min-w-0">
                           <Badge color={tag.color}>@{tag.name}</Badge>
                           <p className="text-xs text-muted-foreground mt-1">
                             Used {getUsageCount(tag.id)} times
                           </p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-1">
+                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => {
                             setName(tag.name);
@@ -232,6 +275,70 @@ export function TagsPage() {
               </Button>
             </div>
           </div>
+        </Modal>
+
+        {/* Tag Usage Detail Modal */}
+        <Modal
+          open={!!selectedTag}
+          onClose={() => setSelectedTag(null)}
+          title={`Tag Usage: @${selectedTag?.name || ""}`}
+          size="md"
+        >
+          {selectedTag &&
+            (() => {
+              const usages = getTagUsages(selectedTag.id);
+              return usages.length === 0 ? (
+                <div className="text-center py-8">
+                  <Tag className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+                  <p className="text-sm text-muted-foreground">
+                    This tag isn't used by any features or scenarios yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Used in {usages.length} place
+                    {usages.length !== 1 ? "s" : ""}
+                  </p>
+                  {usages.map((usage, i) => (
+                    <button
+                      key={i}
+                      className="w-full flex items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors cursor-pointer"
+                      onClick={() => {
+                        setSelectedTag(null);
+                        navigate(
+                          `/projects/${projectId}/features/${usage.featureId}`,
+                        );
+                      }}
+                    >
+                      {usage.type === "feature" ? (
+                        <FileText className="w-4 h-4 text-primary shrink-0" />
+                      ) : (
+                        <FlaskConical className="w-4 h-4 text-muted-foreground shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {usage.type === "feature"
+                            ? usage.featureName
+                            : usage.scenarioName}
+                        </p>
+                        {usage.type === "scenario" && (
+                          <p className="text-xs text-muted-foreground truncate">
+                            in {usage.featureName}
+                          </p>
+                        )}
+                      </div>
+                      <Badge
+                        color={usage.type === "feature" ? "#3b82f6" : "#8b5cf6"}
+                        className="ml-auto text-[10px] shrink-0"
+                      >
+                        {usage.type}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
         </Modal>
       </div>
     </PageTransition>

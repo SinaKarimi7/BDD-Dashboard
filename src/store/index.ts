@@ -14,6 +14,7 @@ import type {
   CreateStepInput,
   CreateTagInput,
   StepKeyword,
+  TriageStatus,
 } from "@/types";
 import { generateId } from "@/lib/utils";
 
@@ -273,6 +274,7 @@ export const useAppStore = create<AppState>()(
           featureId,
           name: input.name,
           type: input.type,
+          status: "backlog",
           position: feature?.scenarios.length ?? 0,
           tags: [],
           steps: [],
@@ -342,6 +344,7 @@ export const useAppStore = create<AppState>()(
           ...scenario,
           id: generateId(),
           name: `${scenario.name} (Copy)`,
+          status: scenario.status || "backlog",
           position: feature!.scenarios.length,
           steps: scenario.steps.map((st) => ({ ...st, id: generateId() })),
           examples: scenario.examples.map((ex) => ({

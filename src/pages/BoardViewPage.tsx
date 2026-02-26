@@ -8,9 +8,12 @@ import {
   Trash2,
   MoreHorizontal,
   Plus,
-  ArrowRight,
   ChevronDown,
   GripVertical,
+  Circle,
+  CircleDot,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -20,16 +23,18 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
+  DragOverlay,
+  useDroppable,
 } from "@dnd-kit/core";
 import {
-  arrayMove,
   SortableContext,
   useSortable,
-  rectSortingStrategy,
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAppStore } from "@/store";
-import type { Scenario } from "@/types";
+import type { Scenario, TriageStatus } from "@/types";
 import {
   Button,
   Badge,
@@ -44,12 +49,34 @@ import {
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { exportSingleFeature } from "@/lib/export";
 import { PageTransition } from "@/components/animation";
-import {
-  boardCardVariants,
-  collapseTransition,
-  easing,
-  duration,
-} from "@/lib/motion";
+import { collapseTransition } from "@/lib/motion";
+
+const COLUMNS: {
+  status: TriageStatus;
+  label: string;
+  icon: typeof Circle;
+  color: string;
+}[] = [
+  {
+    status: "backlog",
+    label: "Backlog",
+    icon: Circle,
+    color: "text-muted-foreground",
+  },
+  { status: "todo", label: "To Do", icon: CircleDot, color: "text-blue-500" },
+  {
+    status: "wip",
+    label: "In Progress",
+    icon: Loader2,
+    color: "text-amber-500",
+  },
+  {
+    status: "done",
+    label: "Done",
+    icon: CheckCircle2,
+    color: "text-green-500",
+  },
+];
 
 export function BoardViewPage() {
   const { projectId, featureId } = useParams<{
@@ -62,14 +89,15 @@ export function BoardViewPage() {
   const addScenario = useAppStore((s) => s.addScenario);
   const cloneScenario = useAppStore((s) => s.cloneScenario);
   const deleteScenario = useAppStore((s) => s.deleteScenario);
-  const reorderScenarios = useAppStore((s) => s.reorderScenarios);
+  const updateScenario = useAppStore((s) => s.updateScenario);
 
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState<"scenario" | "scenario_outline">("scenario");
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 10 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
   if (!project || !feature) {
@@ -80,9 +108,12 @@ export function BoardViewPage() {
     );
   }
 
-  const sortedScenarios = [...feature.scenarios].sort(
+  const allScenarios = [...feature.scenarios].sort(
     (a, b) => a.position - b.position,
   );
+
+  const getColumnScenarios = (status: TriageStatus) =>
+    allScenarios.filter((s) => (s.status || "backlog") === status);
 
   const handleAdd = () => {
     if (!name.trim()) return;
@@ -91,21 +122,57 @@ export function BoardViewPage() {
     setShowAdd(false);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = sortedScenarios.findIndex((s) => s.id === active.id);
-    const newIndex = sortedScenarios.findIndex((s) => s.id === over.id);
-    const reordered = arrayMove(sortedScenarios, oldIndex, newIndex);
-    reorderScenarios(
-      featureId!,
-      reordered.map((s) => s.id),
-    );
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
   };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const scenarioId = active.id as string;
+    const overId = over.id as string;
+
+    // Check if dropped on a column
+    const targetColumn = COLUMNS.find((c) => c.status === overId);
+    if (targetColumn) {
+      const scenario = allScenarios.find((s) => s.id === scenarioId);
+      if (scenario && (scenario.status || "backlog") !== targetColumn.status) {
+        updateScenario(featureId!, scenarioId, {
+          status: targetColumn.status,
+        });
+      }
+      return;
+    }
+
+    // Check if dropped on another scenario — move to that scenario's column
+    const overScenario = allScenarios.find((s) => s.id === overId);
+    if (overScenario) {
+      const draggedScenario = allScenarios.find((s) => s.id === scenarioId);
+      if (
+        draggedScenario &&
+        (draggedScenario.status || "backlog") !==
+          (overScenario.status || "backlog")
+      ) {
+        updateScenario(featureId!, scenarioId, {
+          status: overScenario.status || "backlog",
+        });
+      }
+    }
+  };
+
+  const activeScenario = activeId
+    ? allScenarios.find((s) => s.id === activeId)
+    : null;
+
+  const totalDone = getColumnScenarios("done").length;
+  const total = allScenarios.length;
+  const progress = total > 0 ? Math.round((totalDone / total) * 100) : 0;
 
   return (
     <PageTransition>
-      <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="p-6 lg:p-8 max-w-[1600px] mx-auto">
         <Breadcrumbs
           items={[
             { label: "Dashboard", path: "/dashboard" },
@@ -118,10 +185,25 @@ export function BoardViewPage() {
           ]}
         />
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 mb-8">
-          <h1 className="text-2xl font-bold tracking-tight">
-            Board: {feature.name}
-          </h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Board: {feature.name}
+            </h1>
+            {total > 0 && (
+              <div className="flex items-center gap-3 mt-2">
+                <div className="w-40 h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-green-500 transition-all duration-500"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {progress}% done ({totalDone}/{total})
+                </span>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -148,10 +230,10 @@ export function BoardViewPage() {
           </div>
         </div>
 
-        {sortedScenarios.length === 0 ? (
+        {allScenarios.length === 0 ? (
           <EmptyState
             title="No scenarios on the board"
-            description="Add scenarios to see them as interactive cards you can drag, reorder, and manage."
+            description="Add scenarios to see them as interactive cards you can drag between columns."
             action={
               <Button onClick={() => setShowAdd(true)}>
                 <Plus className="w-4 h-4" />
@@ -163,37 +245,36 @@ export function BoardViewPage() {
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext
-              items={sortedScenarios.map((s) => s.id)}
-              strategy={rectSortingStrategy}
-            >
-              <div className="relative">
-                {/* Flow connector lines */}
-                <AnimatePresence mode="popLayout">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {sortedScenarios.map((scenario, idx) => (
-                      <BoardCard
-                        key={scenario.id}
-                        scenario={scenario}
-                        index={idx}
-                        total={sortedScenarios.length}
-                        featureId={featureId!}
-                        projectId={projectId!}
-                        onClone={() => cloneScenario(featureId!, scenario.id)}
-                        onDelete={() => deleteScenario(featureId!, scenario.id)}
-                        onEdit={() =>
-                          navigate(
-                            `/projects/${projectId}/features/${featureId}`,
-                          )
-                        }
-                      />
-                    ))}
-                  </div>
-                </AnimatePresence>
-              </div>
-            </SortableContext>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              {COLUMNS.map((col) => (
+                <KanbanColumn
+                  key={col.status}
+                  column={col}
+                  scenarios={getColumnScenarios(col.status)}
+                  featureId={featureId!}
+                  projectId={projectId!}
+                  onClone={(id) => cloneScenario(featureId!, id)}
+                  onDelete={(id) => deleteScenario(featureId!, id)}
+                  onEdit={() =>
+                    navigate(`/projects/${projectId}/features/${featureId}`)
+                  }
+                />
+              ))}
+            </div>
+
+            <DragOverlay>
+              {activeScenario ? (
+                <div className="rounded-xl border-2 border-primary bg-card shadow-2xl p-4 opacity-90 rotate-2 max-w-[300px]">
+                  <p className="font-semibold text-sm">{activeScenario.name}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {activeScenario.steps.length} steps
+                  </p>
+                </div>
+              ) : null}
+            </DragOverlay>
           </DndContext>
         )}
 
@@ -245,12 +326,79 @@ export function BoardViewPage() {
   );
 }
 
-// ─── Board Card ─────────────────────────────────────────────
+// ─── Kanban Column ──────────────────────────────────────────
 
-interface BoardCardProps {
+interface KanbanColumnProps {
+  column: (typeof COLUMNS)[0];
+  scenarios: Scenario[];
+  featureId: string;
+  projectId: string;
+  onClone: (id: string) => void;
+  onDelete: (id: string) => void;
+  onEdit: () => void;
+}
+
+function KanbanColumn({
+  column,
+  scenarios,
+  featureId,
+  projectId,
+  onClone,
+  onDelete,
+  onEdit,
+}: KanbanColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({ id: column.status });
+  const Icon = column.icon;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex flex-col rounded-xl border-2 bg-muted/30 min-h-[300px] transition-colors ${
+        isOver ? "border-primary/50 bg-primary/5" : "border-border"
+      }`}
+    >
+      {/* Column header */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <Icon className={`w-4 h-4 ${column.color}`} />
+        <h3 className="text-sm font-semibold">{column.label}</h3>
+        <span className="ml-auto text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+          {scenarios.length}
+        </span>
+      </div>
+
+      {/* Cards */}
+      <SortableContext
+        items={scenarios.map((s) => s.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="flex-1 p-2 space-y-2">
+          {scenarios.length === 0 ? (
+            <div className="flex items-center justify-center h-20 text-xs text-muted-foreground border-2 border-dashed border-border rounded-lg">
+              Drop here
+            </div>
+          ) : (
+            scenarios.map((scenario) => (
+              <KanbanCard
+                key={scenario.id}
+                scenario={scenario}
+                featureId={featureId}
+                projectId={projectId}
+                onClone={() => onClone(scenario.id)}
+                onDelete={() => onDelete(scenario.id)}
+                onEdit={onEdit}
+              />
+            ))
+          )}
+        </div>
+      </SortableContext>
+    </div>
+  );
+}
+
+// ─── Kanban Card ────────────────────────────────────────────
+
+interface KanbanCardProps {
   scenario: Scenario;
-  index: number;
-  total: number;
   featureId: string;
   projectId: string;
   onClone: () => void;
@@ -258,14 +406,7 @@ interface BoardCardProps {
   onEdit: () => void;
 }
 
-function BoardCard({
-  scenario,
-  index,
-  total,
-  onClone,
-  onDelete,
-  onEdit,
-}: BoardCardProps) {
+function KanbanCard({ scenario, onClone, onDelete, onEdit }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -291,53 +432,33 @@ function BoardCard({
   );
 
   return (
-    <motion.div
+    <div
       ref={setNodeRef}
       style={style}
-      variants={boardCardVariants}
-      initial="initial"
-      animate="animate"
-      exit={{
-        opacity: 0,
-        scale: 0.9,
-        transition: { duration: duration.normal, ease: easing.apple },
-      }}
-      layout
-      whileHover={
-        !isDragging
-          ? {
-              y: -3,
-              transition: { duration: duration.normal, ease: easing.apple },
-            }
-          : undefined
-      }
-      className={`group relative rounded-xl border-2 bg-card shadow-sm transition-colors ${
+      className={`group relative rounded-lg border bg-card shadow-sm transition-all ${
         isDragging
-          ? "shadow-2xl border-primary scale-[1.03]"
-          : "border-border hover:border-primary/30"
+          ? "shadow-xl border-primary opacity-50 scale-[1.02]"
+          : "border-border hover:border-primary/30 hover:shadow-md"
       }`}
     >
-      {/* Card header */}
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
+      <div className="p-3">
+        <div className="flex items-start justify-between gap-1 mb-1.5">
+          <div className="flex items-center gap-1.5">
             <button
               {...attributes}
               {...listeners}
               className="cursor-grab text-muted-foreground hover:text-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
             >
-              <GripVertical className="w-4 h-4" />
+              <GripVertical className="w-3.5 h-3.5" />
             </button>
-            <div>
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                {keyword}
-              </span>
-            </div>
+            <span className="text-[9px] uppercase tracking-wider font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+              {keyword}
+            </span>
           </div>
           <DropdownMenu
             trigger={
-              <button className="rounded-lg p-1 hover:bg-accent transition-colors cursor-pointer opacity-0 group-hover:opacity-100">
-                <MoreHorizontal className="w-4 h-4" />
+              <button className="rounded-md p-0.5 hover:bg-accent transition-colors cursor-pointer opacity-0 group-hover:opacity-100">
+                <MoreHorizontal className="w-3.5 h-3.5" />
               </button>
             }
           >
@@ -354,15 +475,15 @@ function BoardCard({
           </DropdownMenu>
         </div>
 
-        <h3 className="font-semibold text-sm mb-2 leading-snug">
+        <h3 className="font-medium text-sm leading-snug mb-1.5">
           {scenario.name}
         </h3>
 
         {/* Tags */}
         {scenario.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
+          <div className="flex flex-wrap gap-1 mb-2">
             {scenario.tags.map((tag) => (
-              <Badge key={tag.id} color={tag.color} className="text-[10px]">
+              <Badge key={tag.id} color={tag.color} className="text-[9px]">
                 @{tag.name}
               </Badge>
             ))}
@@ -370,21 +491,23 @@ function BoardCard({
         )}
 
         {/* Step summary */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
           <span>{scenario.steps.length} steps</span>
-          {Object.entries(stepsByKeyword).map(([kw, count]) => (
-            <span key={kw} className="flex items-center gap-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-              {count} {kw}
-            </span>
-          ))}
+          {Object.entries(stepsByKeyword)
+            .slice(0, 3)
+            .map(([kw, count]) => (
+              <span key={kw} className="flex items-center gap-0.5">
+                <span className="w-1 h-1 rounded-full bg-primary/40" />
+                {count} {kw}
+              </span>
+            ))}
         </div>
 
         {/* Expandable steps preview */}
         {scenario.steps.length > 0 && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-1 mt-2 text-xs text-primary hover:text-primary/80 transition-colors cursor-pointer"
+            className="flex items-center gap-1 mt-1.5 text-[11px] text-primary hover:text-primary/80 transition-colors cursor-pointer"
           >
             <ChevronDown
               className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -400,17 +523,19 @@ function BoardCard({
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={collapseTransition}
-              className="overflow-hidden mt-2"
+              className="overflow-hidden mt-1.5"
             >
-              <div className="space-y-1 text-xs font-mono border-t border-border pt-2">
+              <div className="space-y-0.5 text-[11px] font-mono border-t border-border pt-1.5">
                 {scenario.steps
                   .sort((a, b) => a.position - b.position)
                   .map((step) => (
-                    <div key={step.id} className="flex gap-1.5">
+                    <div key={step.id} className="flex gap-1">
                       <span className="font-bold text-primary shrink-0">
                         {step.keyword}
                       </span>
-                      <span className="text-muted-foreground">{step.text}</span>
+                      <span className="text-muted-foreground truncate">
+                        {step.text}
+                      </span>
                     </div>
                   ))}
               </div>
@@ -418,18 +543,6 @@ function BoardCard({
           )}
         </AnimatePresence>
       </div>
-
-      {/* Flow connector arrow */}
-      {index < total - 1 && (
-        <div className="hidden sm:flex absolute -right-4 top-1/2 -translate-y-1/2 z-10 text-muted-foreground/30">
-          <ArrowRight className="w-4 h-4" />
-        </div>
-      )}
-
-      {/* Position indicator */}
-      <div className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center shadow-sm">
-        {index + 1}
-      </div>
-    </motion.div>
+    </div>
   );
 }

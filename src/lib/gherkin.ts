@@ -130,19 +130,25 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
     let docStringBuffer: string[] = [];
     let pendingTags: string[] = [];
     let descriptionLines: string[] = [];
-    let inDescription = false;
+    let inFeatureDescription = false;
+    let inExamples = false;
+
+    // Keywords that end the feature description section
+    const SECTION_KEYWORDS =
+      /^(Scenario Outline:|Scenario:|Background:|Examples:|Rule:)/;
 
     for (const rawLine of lines) {
       const line = rawLine.trimEnd();
       const trimmed = line.trim();
 
-      // Doc string boundaries
-      if (trimmed === '"""') {
+      // ── Doc string boundaries ──
+      if (trimmed === '"""' || trimmed === "```") {
         if (inDocString) {
-          // Close doc string
           const target = currentScenario
             ? currentScenario.steps[currentScenario.steps.length - 1]
-            : null;
+            : inBackground && feature.background
+              ? feature.background.steps[feature.background.steps.length - 1]
+              : null;
           if (target) {
             target.docString = docStringBuffer.join("\n");
           }
@@ -159,14 +165,30 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
         continue;
       }
 
-      // Empty lines
-      if (!trimmed) {
-        if (inDescription) inDescription = false;
+      // ── Comments ──
+      if (trimmed.startsWith("#")) {
         continue;
       }
 
-      // Tags
+      // ── Empty lines ──
+      if (!trimmed) {
+        // Empty lines within the description are preserved
+        if (inFeatureDescription) {
+          descriptionLines.push("");
+        }
+        continue;
+      }
+
+      // ── Tags ──
       if (trimmed.startsWith("@")) {
+        // If we were collecting feature description, finalize it
+        if (inFeatureDescription) {
+          feature.description = descriptionLines
+            .join("\n")
+            .replace(/\n+$/, "")
+            .replace(/^\n+/, "");
+          inFeatureDescription = false;
+        }
         pendingTags.push(
           ...trimmed
             .split(/\s+/)
@@ -176,7 +198,7 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
         continue;
       }
 
-      // Feature
+      // ── Feature ──
       if (trimmed.startsWith("Feature:")) {
         feature.name = trimmed.replace("Feature:", "").trim();
         feature.tags = pendingTags.map((name, i) => ({
@@ -186,25 +208,31 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
           color: TAG_COLORS[i % TAG_COLORS.length],
         }));
         pendingTags = [];
-        inDescription = true;
+        inFeatureDescription = true;
+        descriptionLines = [];
         continue;
       }
 
-      // Collect description lines after Feature:
-      if (
-        inDescription &&
-        !trimmed.startsWith("Scenario") &&
-        !trimmed.startsWith("Background")
-      ) {
-        descriptionLines.push(trimmed);
-        continue;
+      // ── Collect description lines after Feature: ──
+      if (inFeatureDescription) {
+        // If we hit a section keyword, finalize description and fall through
+        if (SECTION_KEYWORDS.test(trimmed) || trimmed.startsWith("@")) {
+          feature.description = descriptionLines
+            .join("\n")
+            .replace(/\n+$/, "")
+            .replace(/^\n+/, "");
+          inFeatureDescription = false;
+          // Fall through to handle this line as a section keyword
+        } else {
+          descriptionLines.push(trimmed);
+          continue;
+        }
       }
 
-      // Background
+      // ── Background ──
       if (trimmed.startsWith("Background:")) {
-        feature.description = descriptionLines.join("\n");
-        inDescription = false;
         inBackground = true;
+        inExamples = false;
         currentScenario = null;
         feature.background = {
           id: generateId(),
@@ -215,25 +243,29 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
         continue;
       }
 
-      // Scenario / Scenario Outline
+      // ── Scenario / Scenario Outline ──
       if (
         trimmed.startsWith("Scenario Outline:") ||
+        trimmed.startsWith("Scenario Template:") ||
         trimmed.startsWith("Scenario:")
       ) {
-        if (inDescription) {
-          feature.description = descriptionLines.join("\n");
-          inDescription = false;
-        }
         inBackground = false;
-        const isOutline = trimmed.startsWith("Scenario Outline:");
+        inExamples = false;
+        const isOutline =
+          trimmed.startsWith("Scenario Outline:") ||
+          trimmed.startsWith("Scenario Template:");
         const name = trimmed
-          .replace(isOutline ? "Scenario Outline:" : "Scenario:", "")
+          .replace(
+            isOutline ? /^Scenario (Outline|Template):/ : /^Scenario:/,
+            "",
+          )
           .trim();
         currentScenario = {
           id: generateId(),
           featureId: feature.id,
           name,
           type: isOutline ? "scenario_outline" : "scenario",
+          status: "backlog",
           position: feature.scenarios.length,
           tags: pendingTags.map((tagName, i) => ({
             id: generateId(),
@@ -251,9 +283,13 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
         continue;
       }
 
-      // Examples
-      if (trimmed.startsWith("Examples:") && currentScenario) {
-        const name = trimmed.replace("Examples:", "").trim();
+      // ── Examples ──
+      if (
+        (trimmed.startsWith("Examples:") || trimmed.startsWith("Scenarios:")) &&
+        currentScenario
+      ) {
+        inExamples = true;
+        const name = trimmed.replace(/^(Examples|Scenarios):/, "").trim();
         currentScenario.examples.push({
           id: generateId(),
           scenarioId: currentScenario.id,
@@ -265,7 +301,7 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
         continue;
       }
 
-      // Data table rows (| ... |)
+      // ── Data table rows (| ... |) ──
       if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
         const cells = trimmed
           .slice(1, -1)
@@ -273,7 +309,11 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
           .map((c) => c.trim());
 
         // Check if we're in examples
-        if (currentScenario && currentScenario.examples.length > 0) {
+        if (
+          inExamples &&
+          currentScenario &&
+          currentScenario.examples.length > 0
+        ) {
           const lastEx =
             currentScenario.examples[currentScenario.examples.length - 1];
           if (lastEx.headers.length === 0) {
@@ -297,13 +337,16 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
         continue;
       }
 
-      // Steps
-      const stepMatch = trimmed.match(/^(Given|When|Then|And|But)\s+(.+)$/);
+      // ── Steps (Given/When/Then/And/But/*) ──
+      const stepMatch = trimmed.match(/^(Given|When|Then|And|But|\*)\s+(.+)$/);
       if (stepMatch) {
+        inExamples = false;
+        const keyword =
+          stepMatch[1] === "*" ? "And" : (stepMatch[1] as StepKeyword);
         const step: Step = {
           id: generateId(),
           scenarioId: currentScenario?.id || "",
-          keyword: stepMatch[1] as StepKeyword,
+          keyword,
           text: stepMatch[2],
           dataTable: null,
           docString: null,
@@ -321,8 +364,12 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
       }
     }
 
-    if (inDescription) {
-      feature.description = descriptionLines.join("\n");
+    // Finalize description if we're still collecting it
+    if (inFeatureDescription && descriptionLines.length > 0) {
+      feature.description = descriptionLines
+        .join("\n")
+        .replace(/\n+$/, "")
+        .replace(/^\n+/, "");
     }
 
     return feature;

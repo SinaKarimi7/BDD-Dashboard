@@ -3,6 +3,7 @@
 export type StepKeyword = "Given" | "When" | "Then" | "And" | "But";
 export type ScenarioType = "scenario" | "scenario_outline";
 export type TagTargetType = "feature" | "scenario";
+export type TriageStatus = "backlog" | "todo" | "wip" | "done";
 
 export interface Project {
   id: string;
@@ -31,6 +32,7 @@ export interface Scenario {
   featureId: string;
   name: string;
   type: ScenarioType;
+  status: TriageStatus;
   position: number;
   tags: Tag[];
   steps: Step[];

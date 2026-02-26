@@ -27,7 +27,12 @@ export function SearchInput({
   const handleChange = (val: string) => {
     setInternal(val);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => onChange(val), debounceMs);
+    if (!val) {
+      // Clear immediately — no debounce for empty value
+      onChange(val);
+    } else {
+      timer.current = setTimeout(() => onChange(val), debounceMs);
+    }
   };
 
   return (
