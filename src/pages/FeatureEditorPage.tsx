@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -61,6 +61,7 @@ import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { TagPicker } from "@/components/features/TagPicker";
 import { StepEditor } from "@/components/features/StepEditor";
 import { GherkinPreview } from "@/components/features/GherkinPreview";
+import { BackgroundEditor } from "@/components/features/BackgroundEditor";
 import { ExamplesEditor } from "@/components/features/ExamplesEditor";
 import { exportSingleFeature } from "@/lib/export";
 import { PageTransition } from "@/components/animation";
@@ -246,76 +247,83 @@ export function FeatureEditorPage() {
 
         {/* Feature header */}
         <div className="mt-4 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-3">
+          {/* Row 1: Title + draft status */}
+          <div className="flex items-start justify-between gap-4 mb-2">
             <h1 className="text-2xl font-bold tracking-tight">
               <span className="gherkin-keyword">Feature:</span> {feature.name}
             </h1>
-            <div className="flex items-center gap-2">
-              {/* Draft indicator & save */}
-              <div className="flex items-center gap-1.5 mr-1">
-                {isDraft ? (
-                  <>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 text-[11px] font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                      Draft
-                    </span>
-                    <Button
-                      size="sm"
-                      onClick={() => setShowSaveConfirm(true)}
-                      className="h-7 text-xs"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      Save
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleDiscardDraft}
-                      className="h-7 text-xs px-2"
-                      title="Discard changes"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                    </Button>
-                  </>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 text-green-600 text-[11px] font-medium">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Saved
-                  </span>
-                )}
-              </div>
-
-              {/* Last edited */}
+            <div className="flex items-center gap-2 shrink-0 mt-1">
+              {isDraft ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-600 text-xs font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Draft
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-500/15 text-green-600 text-xs font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Saved
+                </span>
+              )}
               <span
-                className="hidden sm:inline-flex items-center gap-1 text-[11px] text-muted-foreground mr-1"
+                className="hidden sm:inline-flex items-center gap-1 text-xs text-muted-foreground"
                 title={new Date(feature.updatedAt).toLocaleString()}
               >
-                <Clock className="w-3 h-3" />
+                <Clock className="w-3.5 h-3.5" />
                 {formatDate(feature.updatedAt)}
               </span>
+            </div>
+          </div>
 
-              <div className="flex items-center gap-0.5 mr-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleUndo}
-                  disabled={!canUndo}
-                  title="Undo (Ctrl+Z)"
-                  className="px-2"
-                >
-                  <Undo2 className="w-4 h-4" />
+          {/* Row 2: Action toolbar */}
+          <div className="flex items-center gap-6 mb-4 flex-wrap">
+            {/* Save / Discard group */}
+            {isDraft && (
+              <div className="flex items-center gap-1.5">
+                <Button size="sm" onClick={() => setShowSaveConfirm(true)}>
+                  <Save className="w-4 h-4" />
+                  Save
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={handleRedo}
-                  disabled={!canRedo}
-                  title="Redo (Ctrl+Shift+Z)"
-                  className="px-2"
+                  onClick={handleDiscardDraft}
+                  title="Discard changes"
                 >
-                  <Redo2 className="w-4 h-4" />
+                  <RotateCcw className="w-4 h-4" />
+                  Discard
                 </Button>
               </div>
+            )}
+
+            {/* Undo / Redo group */}
+            <div className="flex items-center gap-0.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleUndo}
+                disabled={!canUndo}
+                title="Undo (Ctrl+Z)"
+                className="px-2"
+              >
+                <Undo2 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRedo}
+                disabled={!canRedo}
+                title="Redo (Ctrl+Shift+Z)"
+                className="px-2"
+              >
+                <Redo2 className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Separator */}
+            <div className="hidden sm:block h-5 w-px bg-border" />
+
+            {/* Navigation / view buttons */}
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -415,6 +423,12 @@ export function FeatureEditorPage() {
           )}
         </AnimatePresence>
 
+        {/* Background — applies to all scenarios */}
+        <BackgroundEditor
+          featureId={featureId!}
+          background={feature.background}
+        />
+
         {/* Scenarios */}
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">
@@ -478,62 +492,12 @@ export function FeatureEditorPage() {
                 )}
               </div>
             </div>
-            {/* Multi-select tag filter chips */}
-            {(() => {
-              const allTags = Array.from(
-                new Map(
-                  feature.scenarios
-                    .flatMap((s) => s.tags)
-                    .map((t) => [t.name, t]),
-                ).values(),
-              );
-              if (allTags.length === 0) return null;
-              return (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <Tags className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  {allTags.map((tag) => {
-                    const active = filterTags.has(tag.name);
-                    return (
-                      <button
-                        key={tag.id}
-                        onClick={() => {
-                          setFilterTags((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(tag.name)) next.delete(tag.name);
-                            else next.add(tag.name);
-                            return next;
-                          });
-                        }}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-all cursor-pointer border ${
-                          active
-                            ? "ring-1 ring-offset-1"
-                            : "opacity-70 hover:opacity-100"
-                        }`}
-                        style={{
-                          backgroundColor: active
-                            ? `${tag.color}25`
-                            : `${tag.color}15`,
-                          color: tag.color,
-                          borderColor: active ? tag.color : "transparent",
-                          ...(active ? { ringColor: tag.color } : {}),
-                        }}
-                      >
-                        @{tag.name}
-                        {active && <X className="w-2.5 h-2.5" />}
-                      </button>
-                    );
-                  })}
-                  {filterTags.size > 0 && (
-                    <button
-                      onClick={() => setFilterTags(new Set())}
-                      className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer ml-1"
-                    >
-                      Clear all
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
+            {/* Multi-select tag filter dropdown */}
+            <TagFilterMultiselect
+              scenarios={feature.scenarios}
+              filterTags={filterTags}
+              setFilterTags={setFilterTags}
+            />
           </div>
         )}
 
@@ -918,6 +882,173 @@ function SortableScenarioCard({
                 />
               )}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Tag Filter Multiselect ─────────────────────────────────
+
+interface TagFilterMultiselectProps {
+  scenarios: Scenario[];
+  filterTags: Set<string>;
+  setFilterTags: React.Dispatch<React.SetStateAction<Set<string>>>;
+}
+
+function TagFilterMultiselect({
+  scenarios,
+  filterTags,
+  setFilterTags,
+}: TagFilterMultiselectProps) {
+  const [tagQuery, setTagQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const allTags = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          scenarios.flatMap((s) => s.tags).map((t) => [t.name, t]),
+        ).values(),
+      ),
+    [scenarios],
+  );
+
+  const filteredTags = useMemo(
+    () =>
+      allTags.filter(
+        (t) =>
+          !filterTags.has(t.name) &&
+          t.name.toLowerCase().includes(tagQuery.toLowerCase()),
+      ),
+    [allTags, filterTags, tagQuery],
+  );
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        wrapperRef.current &&
+        !wrapperRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const addTag = useCallback(
+    (name: string) => {
+      setFilterTags((prev) => new Set(prev).add(name));
+      setTagQuery("");
+      inputRef.current?.focus();
+    },
+    [setFilterTags],
+  );
+
+  const removeTag = useCallback(
+    (name: string) => {
+      setFilterTags((prev) => {
+        const next = new Set(prev);
+        next.delete(name);
+        return next;
+      });
+    },
+    [setFilterTags],
+  );
+
+  if (allTags.length === 0) return null;
+
+  const selectedTags = allTags.filter((t) => filterTags.has(t.name));
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <div
+        className="flex items-center gap-1.5 flex-wrap min-h-[34px] px-2 py-1 rounded-md border border-input bg-background cursor-text"
+        onClick={() => {
+          inputRef.current?.focus();
+          setOpen(true);
+        }}
+      >
+        <Tags className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        {selectedTags.map((tag) => (
+          <span
+            key={tag.id}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
+            style={{
+              backgroundColor: `${tag.color}20`,
+              color: tag.color,
+            }}
+          >
+            @{tag.name}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                removeTag(tag.name);
+              }}
+              className="hover:opacity-70 cursor-pointer"
+            >
+              <X className="w-2.5 h-2.5" />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          value={tagQuery}
+          onChange={(e) => {
+            setTagQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Backspace" && !tagQuery && selectedTags.length > 0) {
+              removeTag(selectedTags[selectedTags.length - 1].name);
+            }
+          }}
+          placeholder={selectedTags.length === 0 ? "Filter by tags..." : ""}
+          className="flex-1 min-w-[80px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        />
+        {filterTags.size > 0 && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setFilterTags(new Set());
+            }}
+            className="text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
+            title="Clear all"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Dropdown */}
+      <AnimatePresence>
+        {open && filteredTags.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute z-30 mt-1 w-full max-h-44 overflow-auto rounded-md border border-border bg-popover shadow-lg"
+          >
+            {filteredTags.map((tag) => (
+              <button
+                key={tag.id}
+                onClick={() => addTag(tag.name)}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent transition-colors cursor-pointer"
+              >
+                <span
+                  className="w-3 h-3 rounded-full shrink-0"
+                  style={{ backgroundColor: tag.color }}
+                />
+                <span>@{tag.name}</span>
+              </button>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>

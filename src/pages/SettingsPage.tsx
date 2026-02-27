@@ -1,17 +1,17 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Trash2,
   AlertTriangle,
   Check,
-  Globe,
   FileText,
   Lightbulb,
   Save as SaveIcon,
   Monitor,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useAppStore, type SystemSettings } from "@/store";
+import { useAppStore } from "@/store";
+import { useShallow } from "zustand/react/shallow";
 import type { TriageStatus } from "@/types";
 import {
   Button,
@@ -34,7 +34,13 @@ export function SettingsPage() {
   const deleteProject = useAppStore((s) => s.deleteProject);
   const systemSettings = useAppStore((s) => s.systemSettings);
   const updateSystemSettings = useAppStore((s) => s.updateSystemSettings);
-  const features = useAppStore((s) => s.getProjectFeatures(projectId!));
+  const features = useAppStore(
+    useShallow((s) =>
+      s.features
+        .filter((f) => f.projectId === projectId)
+        .sort((a, b) => a.position - b.position),
+    ),
+  );
 
   const [name, setName] = useState(project?.name || "");
   const [description, setDescription] = useState(project?.description || "");
@@ -57,6 +63,20 @@ export function SettingsPage() {
   );
   const [showSuggestions, setShowSuggestions] = useState(
     systemSettings?.showStepSuggestions ?? true,
+  );
+
+  // Project stats (memoized — must be before early return)
+  const totalScenarios = useMemo(
+    () => features.reduce((acc, f) => acc + f.scenarios.length, 0),
+    [features],
+  );
+  const totalSteps = useMemo(
+    () =>
+      features.reduce(
+        (acc, f) => acc + f.scenarios.reduce((a2, s) => a2 + s.steps.length, 0),
+        0,
+      ),
+    [features],
   );
 
   if (!project) return null;
@@ -87,16 +107,6 @@ export function SettingsPage() {
     deleteProject(projectId!);
     navigate("/dashboard");
   };
-
-  // Project stats
-  const totalScenarios = features.reduce(
-    (acc, f) => acc + f.scenarios.length,
-    0,
-  );
-  const totalSteps = features.reduce(
-    (acc, f) => acc + f.scenarios.reduce((a2, s) => a2 + s.steps.length, 0),
-    0,
-  );
 
   return (
     <PageTransition>

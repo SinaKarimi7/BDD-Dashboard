@@ -1,72 +1,15 @@
 import { useState, useMemo } from "react";
-import { Plus, Tag, Palette, RefreshCw } from "lucide-react";
+import { Plus, Tag, Palette } from "lucide-react";
 import { useAppStore } from "@/store";
 import { useShallow } from "zustand/react/shallow";
 import { Badge, Button, Input, Modal } from "@/components/ui";
+import { TAG_COLORS, generateColorFromName, hslToHex } from "@/lib/colors";
 
 interface TagPickerProps {
   projectId: string;
   featureId: string;
   targetType: "feature" | "scenario";
   targetId: string;
-}
-
-const TAG_COLORS = [
-  "#22c55e",
-  "#3b82f6",
-  "#f59e0b",
-  "#ef4444",
-  "#8b5cf6",
-  "#ec4899",
-  "#06b6d4",
-  "#f97316",
-  "#14b8a6",
-  "#6366f1",
-];
-
-// Dynamic color generation from tag name
-function generateColorFromName(name: string): string {
-  if (!name) return TAG_COLORS[0];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    hash = hash & hash;
-  }
-  const h = ((hash % 360) + 360) % 360;
-  const s = 55 + (Math.abs(hash >> 8) % 25); // 55-80%
-  const l = 45 + (Math.abs(hash >> 16) % 15); // 45-60%
-  return `hsl(${h}, ${s}%, ${l}%)`;
-}
-
-function hslToHex(hsl: string): string {
-  const match = hsl.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
-  if (!match) return hsl;
-  const h = parseInt(match[1]) / 360;
-  const s = parseInt(match[2]) / 100;
-  const l = parseInt(match[3]) / 100;
-  const hue2rgb = (p: number, q: number, t: number) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  let r, g, b;
-  if (s === 0) {
-    r = g = b = l;
-  } else {
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1 / 3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1 / 3);
-  }
-  const toHex = (c: number) => {
-    const hex = Math.round(c * 255).toString(16);
-    return hex.length === 1 ? "0" + hex : hex;
-  };
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
 export function TagPicker({
