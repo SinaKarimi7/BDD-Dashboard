@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -16,7 +16,6 @@ import {
   CircleDot,
   Loader2,
   CheckCircle2,
-  Tags,
   X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -42,9 +41,10 @@ import {
 } from "@/components/ui";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { FileDropZone } from "@/components/features/FileDropZone";
+import { TagFilterMultiselect } from "@/components/features/TagFilterMultiselect";
 import { exportSingleFeature, exportAllFeatures } from "@/lib/export";
 import { PageTransition } from "@/components/animation";
-import { staggerContainer, staggerItem, easing, duration } from "@/lib/motion";
+import { easing, duration } from "@/lib/motion";
 
 const STATUS_CONFIG = [
   {
@@ -196,13 +196,17 @@ export function ProjectPage() {
     if (selected.length > 0) exportAllFeatures(selected, project.name);
   };
 
-  // Gather all tags in project for filter
-  const allProjectTags = Array.from(
-    new Map(
-      features
-        .flatMap((f) => [...f.tags, ...f.scenarios.flatMap((s) => s.tags)])
-        .map((t) => [t.name, t]),
-    ).values(),
+  // Gather all unique tags in project for filter
+  const allProjectTags = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          features
+            .flatMap((f) => [...f.tags, ...f.scenarios.flatMap((s) => s.tags)])
+            .map((t) => [t.name, t]),
+        ).values(),
+      ),
+    [features],
   );
 
   const handleCreate = () => {
@@ -402,51 +406,13 @@ export function ProjectPage() {
                 )}
               </div>
             </div>
-            {/* Tag filter chips */}
-            {allProjectTags.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <Tags className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                {allProjectTags.map((tag) => {
-                  const active = filterTags.has(tag.name);
-                  return (
-                    <button
-                      key={tag.id}
-                      onClick={() => {
-                        setFilterTags((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(tag.name)) next.delete(tag.name);
-                          else next.add(tag.name);
-                          return next;
-                        });
-                      }}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-all cursor-pointer border ${
-                        active
-                          ? "ring-1 ring-offset-1"
-                          : "opacity-70 hover:opacity-100"
-                      }`}
-                      style={{
-                        backgroundColor: active
-                          ? `${tag.color}25`
-                          : `${tag.color}15`,
-                        color: tag.color,
-                        borderColor: active ? tag.color : "transparent",
-                      }}
-                    >
-                      @{tag.name}
-                      {active && <X className="w-2.5 h-2.5" />}
-                    </button>
-                  );
-                })}
-                {filterTags.size > 0 && (
-                  <button
-                    onClick={() => setFilterTags(new Set())}
-                    className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer ml-1"
-                  >
-                    Clear all
-                  </button>
-                )}
-              </div>
-            )}
+            {/* Tag filter — multiselect autocomplete */}
+            <TagFilterMultiselect
+              tags={allProjectTags}
+              filterTags={filterTags}
+              setFilterTags={setFilterTags}
+              placeholder="Filter by tags…"
+            />
             {/* Selection controls */}
             {filteredFeatures.length > 0 && (
               <div className="flex items-center gap-2">
@@ -514,25 +480,15 @@ export function ProjectPage() {
             }
           />
         ) : (
-          <motion.div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-            variants={staggerContainer(50, 50)}
-            initial="initial"
-            animate="animate"
-          >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <AnimatePresence mode="popLayout">
               {filteredFeatures.map((feature) => (
                 <motion.div
                   key={feature.id}
-                  variants={staggerItem}
-                  exit={{
-                    opacity: 0,
-                    scale: 0.95,
-                    transition: {
-                      duration: duration.normal,
-                      ease: easing.apple,
-                    },
-                  }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: duration.normal, ease: easing.apple }}
                   layout
                 >
                   <Card
@@ -626,7 +582,7 @@ export function ProjectPage() {
                 </motion.div>
               ))}
             </AnimatePresence>
-          </motion.div>
+          </div>
         )}
 
         {/* Create Feature Modal */}

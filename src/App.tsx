@@ -9,6 +9,7 @@ import { BoardViewPage } from "@/pages/BoardViewPage";
 import { TagsPage } from "@/pages/TagsPage";
 import { ExportPage } from "@/pages/ExportPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { SystemSettingsPage } from "@/pages/SystemSettingsPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { GitHubSyncPage } from "@/pages/GitHubSyncPage";
 import { ProjectBoardPage } from "@/pages/ProjectBoardPage";
@@ -33,6 +34,7 @@ export default function App() {
           {/* App routes with sidebar shell */}
           <Route element={<AppShell />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/settings" element={<SystemSettingsPage />} />
             <Route path="/projects/:projectId" element={<ProjectPage />} />
             <Route
               path="/projects/:projectId/features/:featureId"

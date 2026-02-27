@@ -39,6 +39,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   const mainNav = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
+    { icon: Settings, label: "System Settings", path: "/settings" },
   ];
 
   const projectNav = projectId
