@@ -99,8 +99,11 @@ export function ProjectBoardPage() {
       .length,
   }));
   const total = allScenarios.length;
-  const doneCount = statusCounts.find((s) => s.status === "done")?.count ?? 0;
-  const progress = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+  const backlogCount =
+    statusCounts.find((s) => s.status === "backlog")?.count ?? 0;
+  const activeCount = total - backlogCount;
+  const progress = total > 0 ? Math.round((activeCount / total) * 100) : 0;
+  const progressSegments = statusCounts.filter((s) => s.status !== "backlog");
 
   const filteredFeatures =
     filterStatus === "all"
@@ -155,7 +158,7 @@ export function ProjectBoardPage() {
             {/* Progress bar */}
             <div className="flex items-center gap-2">
               <div className="w-32 h-2.5 rounded-full bg-muted overflow-hidden flex">
-                {statusCounts.map(
+                {progressSegments.map(
                   (s) =>
                     s.count > 0 && (
                       <div
@@ -261,7 +264,6 @@ function FeatureRow({
   const done = feature.scenarios.filter(
     (s) => (s.status || "backlog") === "done",
   ).length;
-  const featureProgress = total > 0 ? Math.round((done / total) * 100) : 0;
 
   // Build mini status counts
   const statusCounts = STATUS_CONFIG.map((c) => ({
@@ -269,6 +271,12 @@ function FeatureRow({
     count: feature.scenarios.filter((s) => (s.status || "backlog") === c.status)
       .length,
   }));
+  const featureBacklog =
+    statusCounts.find((c) => c.status === "backlog")?.count ?? 0;
+  const featureActive = total - featureBacklog;
+  const featureProgressSegments = statusCounts.filter(
+    (c) => c.status !== "backlog",
+  );
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -304,7 +312,7 @@ function FeatureRow({
           {/* Mini status bar */}
           <div className="flex items-center gap-2 mt-1">
             <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden flex">
-              {statusCounts.map(
+              {featureProgressSegments.map(
                 (c) =>
                   c.count > 0 && (
                     <div
@@ -318,7 +326,7 @@ function FeatureRow({
               )}
             </div>
             <span className="text-[11px] text-muted-foreground">
-              {done}/{total} done
+              {featureActive}/{total} active
             </span>
             <div className="flex items-center gap-1.5 ml-1">
               {statusCounts

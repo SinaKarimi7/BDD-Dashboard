@@ -20,6 +20,22 @@ import type {
 } from "@/types";
 import { generateId } from "@/lib/utils";
 
+export interface SystemSettings {
+  defaultScenarioStatus: TriageStatus;
+  autoSaveDrafts: boolean;
+  gherkinLanguage: string;
+  exportFormat: "feature" | "json";
+  showStepSuggestions: boolean;
+}
+
+const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
+  defaultScenarioStatus: "backlog",
+  autoSaveDrafts: true,
+  gherkinLanguage: "en",
+  exportFormat: "feature",
+  showStepSuggestions: true,
+};
+
 interface AppState {
   // Data
   projects: Project[];
@@ -124,6 +140,10 @@ interface AppState {
   getFeature: (id: string) => Feature | undefined;
   getProjectFeatures: (projectId: string) => Feature[];
   getProjectTags: (projectId: string) => Tag[];
+
+  // System settings
+  systemSettings: SystemSettings;
+  updateSystemSettings: (updates: Partial<SystemSettings>) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -288,7 +308,7 @@ export const useAppStore = create<AppState>()(
           featureId,
           name: input.name,
           type: input.type,
-          status: "backlog",
+          status: state.systemSettings?.defaultScenarioStatus || "backlog",
           position: feature?.scenarios.length ?? 0,
           tags: [],
           steps: [],
@@ -733,6 +753,14 @@ export const useAppStore = create<AppState>()(
           .sort((a, b) => a.position - b.position),
       getProjectTags: (projectId) =>
         get().tags.filter((t) => t.projectId === projectId),
+
+      // ── System Settings ───────────────────────────────────
+      systemSettings: DEFAULT_SYSTEM_SETTINGS,
+      updateSystemSettings: (updates) => {
+        set((s) => ({
+          systemSettings: { ...s.systemSettings, ...updates },
+        }));
+      },
     }),
     {
       name: "bdd-dashboard-store",

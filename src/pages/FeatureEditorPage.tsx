@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -19,6 +19,11 @@ import {
   Search,
   Tags,
   X,
+  Undo2,
+  Redo2,
+  Save,
+  RotateCcw,
+  Clock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -39,7 +44,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAppStore } from "@/store";
-import type { Scenario } from "@/types";
+import type { Scenario, TriageStatus } from "@/types";
 import {
   Button,
   Badge,
@@ -60,6 +65,7 @@ import { ExamplesEditor } from "@/components/features/ExamplesEditor";
 import { exportSingleFeature } from "@/lib/export";
 import { PageTransition } from "@/components/animation";
 import { collapseTransition, easing, duration } from "@/lib/motion";
+import { useUndoRedo, pushUndo } from "@/hooks/useUndoRedo";
 
 export function FeatureEditorPage() {
   const { projectId, featureId } = useParams<{
@@ -74,6 +80,12 @@ export function FeatureEditorPage() {
   const deleteScenario = useAppStore((s) => s.deleteScenario);
   const cloneScenario = useAppStore((s) => s.cloneScenario);
   const reorderScenarios = useAppStore((s) => s.reorderScenarios);
+  const {
+    canUndo,
+    canRedo,
+    undo: handleUndo,
+    redo: handleRedo,
+  } = useUndoRedo(featureId);
 
   const [showAddScenario, setShowAddScenario] = useState(false);
   const [scenarioName, setScenarioName] = useState("");
@@ -87,7 +99,59 @@ export function FeatureEditorPage() {
   const [editingFeatureDesc, setEditingFeatureDesc] = useState(false);
   const [featureDesc, setFeatureDesc] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterTag, setFilterTag] = useState<string | null>(null);
+  const [filterTags, setFilterTags] = useState<Set<string>>(new Set());
+  const [filterStatus, setFilterStatus] = useState<TriageStatus | null>(null);
+  const [lastAddedScenarioId, setLastAddedScenarioId] = useState<string | null>(
+    null,
+  );
+  const newScenarioRef = useRef<HTMLDivElement>(null);
+
+  // ─── Draft mode ───────────────────────────────────────────
+  const [savedSnapshot, setSavedSnapshot] = useState<string>(() =>
+    feature ? JSON.stringify(feature) : "",
+  );
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+
+  const currentJson = useMemo(
+    () => (feature ? JSON.stringify(feature) : ""),
+    [feature],
+  );
+  const isDraft = currentJson !== savedSnapshot && savedSnapshot !== "";
+
+  const handleSaveConfirm = () => {
+    setSavedSnapshot(currentJson);
+    updateFeature(featureId!, { updatedAt: new Date().toISOString() });
+    setShowSaveConfirm(false);
+  };
+
+  const handleDiscardDraft = () => {
+    if (!savedSnapshot) return;
+    try {
+      const snap = JSON.parse(savedSnapshot);
+      updateFeature(featureId!, snap);
+      setShowSaveConfirm(false);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return d.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+    });
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -119,6 +183,7 @@ export function FeatureEditorPage() {
 
   const handleAddScenario = () => {
     if (!scenarioName.trim()) return;
+    pushUndo(featureId!, "Add scenario");
     const sc = addScenario(featureId!, {
       name: scenarioName.trim(),
       type: scenarioType,
@@ -127,11 +192,26 @@ export function FeatureEditorPage() {
     setScenarioType("scenario");
     setShowAddScenario(false);
     setExpandedScenarios((prev) => new Set(prev).add(sc.id));
+    setLastAddedScenarioId(sc.id);
   };
+
+  // Auto-scroll to newly added scenario
+  useEffect(() => {
+    if (lastAddedScenarioId && newScenarioRef.current) {
+      setTimeout(() => {
+        newScenarioRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+        setLastAddedScenarioId(null);
+      }, 150);
+    }
+  }, [lastAddedScenarioId, feature?.scenarios.length]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
+    pushUndo(featureId!, "Reorder scenarios");
 
     const oldIndex = sortedScenarios.findIndex((s) => s.id === active.id);
     const newIndex = sortedScenarios.findIndex((s) => s.id === over.id);
@@ -148,6 +228,7 @@ export function FeatureEditorPage() {
   };
 
   const saveDescription = () => {
+    pushUndo(featureId!, "Edit description");
     updateFeature(featureId!, { description: featureDesc });
     setEditingFeatureDesc(false);
   };
@@ -170,6 +251,71 @@ export function FeatureEditorPage() {
               <span className="gherkin-keyword">Feature:</span> {feature.name}
             </h1>
             <div className="flex items-center gap-2">
+              {/* Draft indicator & save */}
+              <div className="flex items-center gap-1.5 mr-1">
+                {isDraft ? (
+                  <>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 text-[11px] font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      Draft
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowSaveConfirm(true)}
+                      className="h-7 text-xs"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      Save
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDiscardDraft}
+                      className="h-7 text-xs px-2"
+                      title="Discard changes"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </Button>
+                  </>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 text-green-600 text-[11px] font-medium">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Saved
+                  </span>
+                )}
+              </div>
+
+              {/* Last edited */}
+              <span
+                className="hidden sm:inline-flex items-center gap-1 text-[11px] text-muted-foreground mr-1"
+                title={new Date(feature.updatedAt).toLocaleString()}
+              >
+                <Clock className="w-3 h-3" />
+                {formatDate(feature.updatedAt)}
+              </span>
+
+              <div className="flex items-center gap-0.5 mr-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleUndo}
+                  disabled={!canUndo}
+                  title="Undo (Ctrl+Z)"
+                  className="px-2"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRedo}
+                  disabled={!canRedo}
+                  title="Redo (Ctrl+Shift+Z)"
+                  className="px-2"
+                >
+                  <Redo2 className="w-4 h-4" />
+                </Button>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -282,24 +428,57 @@ export function FeatureEditorPage() {
 
         {/* Search & tag filter */}
         {sortedScenarios.length > 0 && (
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <div className="relative flex-1 min-w-[180px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search scenarios..."
-                className="w-full h-8 pl-8 pr-8 rounded-md border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+          <div className="flex flex-col gap-2 mb-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[180px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search scenarios..."
+                  className="w-full h-8 pl-8 pr-8 rounded-md border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              {/* Status filter */}
+              <div className="flex items-center gap-1">
+                {STATUS_CONFIG.map((sc) => {
+                  const Icon = sc.icon;
+                  const active = filterStatus === sc.status;
+                  return (
+                    <button
+                      key={sc.status}
+                      onClick={() => setFilterStatus(active ? null : sc.status)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer border ${
+                        active
+                          ? `${sc.color} border-current bg-accent`
+                          : "border-transparent text-muted-foreground hover:text-foreground hover:bg-accent"
+                      }`}
+                      title={`Filter: ${sc.label}`}
+                    >
+                      <Icon className="w-3 h-3" />
+                      <span className="hidden sm:inline">{sc.label}</span>
+                    </button>
+                  );
+                })}
+                {filterStatus && (
+                  <button
+                    onClick={() => setFilterStatus(null)}
+                    className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer ml-0.5"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
+            {/* Multi-select tag filter chips */}
             {(() => {
               const allTags = Array.from(
                 new Map(
@@ -310,29 +489,46 @@ export function FeatureEditorPage() {
               );
               if (allTags.length === 0) return null;
               return (
-                <div className="flex items-center gap-1 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <Tags className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  {allTags.map((tag) => (
+                  {allTags.map((tag) => {
+                    const active = filterTags.has(tag.name);
+                    return (
+                      <button
+                        key={tag.id}
+                        onClick={() => {
+                          setFilterTags((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(tag.name)) next.delete(tag.name);
+                            else next.add(tag.name);
+                            return next;
+                          });
+                        }}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-all cursor-pointer border ${
+                          active
+                            ? "ring-1 ring-offset-1"
+                            : "opacity-70 hover:opacity-100"
+                        }`}
+                        style={{
+                          backgroundColor: active
+                            ? `${tag.color}25`
+                            : `${tag.color}15`,
+                          color: tag.color,
+                          borderColor: active ? tag.color : "transparent",
+                          ...(active ? { ringColor: tag.color } : {}),
+                        }}
+                      >
+                        @{tag.name}
+                        {active && <X className="w-2.5 h-2.5" />}
+                      </button>
+                    );
+                  })}
+                  {filterTags.size > 0 && (
                     <button
-                      key={tag.id}
-                      onClick={() =>
-                        setFilterTag(filterTag === tag.name ? null : tag.name)
-                      }
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer border ${
-                        filterTag === tag.name
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-transparent bg-muted text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      @{tag.name}
-                    </button>
-                  ))}
-                  {filterTag && (
-                    <button
-                      onClick={() => setFilterTag(null)}
+                      onClick={() => setFilterTags(new Set())}
                       className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer ml-1"
                     >
-                      Clear
+                      Clear all
                     </button>
                   )}
                 </div>
@@ -350,7 +546,12 @@ export function FeatureEditorPage() {
               !s.steps.some((st) => st.text.toLowerCase().includes(q))
             )
               return false;
-            if (filterTag && !s.tags.some((t) => t.name === filterTag))
+            if (
+              filterTags.size > 0 &&
+              !s.tags.some((t) => filterTags.has(t.name))
+            )
+              return false;
+            if (filterStatus && (s.status || "backlog") !== filterStatus)
               return false;
             return true;
           });
@@ -373,8 +574,7 @@ export function FeatureEditorPage() {
           if (filtered.length === 0) {
             return (
               <div className="text-center py-8 text-sm text-muted-foreground">
-                No scenarios match your search
-                {filterTag ? ` and tag @${filterTag}` : ""}.
+                No scenarios match your filters.
               </div>
             );
           }
@@ -394,6 +594,11 @@ export function FeatureEditorPage() {
                     {filtered.map((scenario) => (
                       <motion.div
                         key={scenario.id}
+                        ref={
+                          scenario.id === lastAddedScenarioId
+                            ? newScenarioRef
+                            : undefined
+                        }
                         layout
                         exit={{
                           opacity: 0,
@@ -411,10 +616,14 @@ export function FeatureEditorPage() {
                           projectId={projectId!}
                           expanded={expandedScenarios.has(scenario.id)}
                           onToggle={() => toggleExpanded(scenario.id)}
-                          onClone={() => cloneScenario(featureId!, scenario.id)}
-                          onDelete={() =>
-                            deleteScenario(featureId!, scenario.id)
-                          }
+                          onClone={() => {
+                            pushUndo(featureId!, "Clone scenario");
+                            cloneScenario(featureId!, scenario.id);
+                          }}
+                          onDelete={() => {
+                            pushUndo(featureId!, "Delete scenario");
+                            deleteScenario(featureId!, scenario.id);
+                          }}
                         />
                       </motion.div>
                     ))}
@@ -469,6 +678,33 @@ export function FeatureEditorPage() {
                 disabled={!scenarioName.trim()}
               >
                 Add Scenario
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Save Confirmation Modal */}
+        <Modal
+          open={showSaveConfirm}
+          onClose={() => setShowSaveConfirm(false)}
+          title="Save Changes"
+          size="sm"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to finalize these changes? This will mark
+              the current state as saved.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowSaveConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSaveConfirm}>
+                <Save className="w-4 h-4" />
+                Save Changes
               </Button>
             </div>
           </div>
@@ -597,6 +833,20 @@ function SortableScenarioCard({
           )}
         </div>
 
+        {/* Status indicator */}
+        {(() => {
+          const sc = STATUS_CONFIG.find(
+            (c) => c.status === (scenario.status || "backlog"),
+          );
+          if (!sc) return null;
+          const StatusIcon = sc.icon;
+          return (
+            <span className={`shrink-0 ${sc.color}`} title={sc.label}>
+              <StatusIcon className="w-3.5 h-3.5" />
+            </span>
+          );
+        })()}
+
         <span className="text-xs text-muted-foreground shrink-0">
           {scenario.steps.length} steps
         </span>
@@ -715,15 +965,19 @@ function FeatureStatusBar({ scenarios }: { scenarios: Scenario[] }) {
     count: scenarios.filter((s) => (s.status || "backlog") === c.status).length,
   }));
 
-  const doneCount = counts.find((c) => c.status === "done")?.count ?? 0;
-  const progress = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+  const backlogCount = counts.find((c) => c.status === "backlog")?.count ?? 0;
+  const activeCount = total - backlogCount;
+  const progress = total > 0 ? Math.round((activeCount / total) * 100) : 0;
+
+  // Non-backlog statuses for the progress segments
+  const progressSegments = counts.filter((c) => c.status !== "backlog");
 
   return (
     <div className="flex items-center gap-4 rounded-lg border border-border bg-muted/20 px-4 py-2.5 mb-4">
-      {/* Progress bar */}
+      {/* Progress bar — backlog = empty background, only todo/wip/done fill from left */}
       <div className="flex items-center gap-2 min-w-0">
         <div className="w-28 h-2 rounded-full bg-muted overflow-hidden flex shrink-0">
-          {counts.map(
+          {progressSegments.map(
             (c) =>
               c.count > 0 && (
                 <div

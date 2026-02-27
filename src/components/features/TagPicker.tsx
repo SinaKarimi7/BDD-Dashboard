@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Tag } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, Tag, Palette, RefreshCw } from "lucide-react";
 import { useAppStore } from "@/store";
 import { useShallow } from "zustand/react/shallow";
 import { Badge, Button, Input, Modal } from "@/components/ui";
@@ -24,6 +24,51 @@ const TAG_COLORS = [
   "#6366f1",
 ];
 
+// Dynamic color generation from tag name
+function generateColorFromName(name: string): string {
+  if (!name) return TAG_COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    hash = hash & hash;
+  }
+  const h = ((hash % 360) + 360) % 360;
+  const s = 55 + (Math.abs(hash >> 8) % 25); // 55-80%
+  const l = 45 + (Math.abs(hash >> 16) % 15); // 45-60%
+  return `hsl(${h}, ${s}%, ${l}%)`;
+}
+
+function hslToHex(hsl: string): string {
+  const match = hsl.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+  if (!match) return hsl;
+  const h = parseInt(match[1]) / 360;
+  const s = parseInt(match[2]) / 100;
+  const l = parseInt(match[3]) / 100;
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  const toHex = (c: number) => {
+    const hex = Math.round(c * 255).toString(16);
+    return hex.length === 1 ? "0" + hex : hex;
+  };
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
 export function TagPicker({
   projectId,
   featureId,
@@ -39,6 +84,15 @@ export function TagPicker({
   const [showCreate, setShowCreate] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
+  const [useAutoColor, setUseAutoColor] = useState(true);
+
+  const autoColor = useMemo(
+    () =>
+      newTagName ? hslToHex(generateColorFromName(newTagName)) : TAG_COLORS[0],
+    [newTagName],
+  );
+
+  const effectiveColor = useAutoColor ? autoColor : newTagColor;
 
   // Get currently assigned tags
   const feature = useAppStore((s) => s.getFeature(featureId));
@@ -63,10 +117,11 @@ export function TagPicker({
     if (!newTagName.trim()) return;
     const tag = addTag(projectId, {
       name: newTagName.trim(),
-      color: newTagColor,
+      color: effectiveColor,
     });
     assignTag(featureId, tag.id, targetType, targetId);
     setNewTagName("");
+    setUseAutoColor(true);
     setShowCreate(false);
   };
 
@@ -116,6 +171,15 @@ export function TagPicker({
 
           {showCreate ? (
             <div className="space-y-3 pt-2 border-t border-border">
+              {/* Live preview */}
+              {newTagName.trim() && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    Preview:
+                  </span>
+                  <Badge color={effectiveColor}>@{newTagName.trim()}</Badge>
+                </div>
+              )}
               <Input
                 placeholder="Tag name"
                 value={newTagName}
@@ -123,19 +187,74 @@ export function TagPicker({
                 autoFocus
                 onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
               />
-              <div className="flex gap-1.5">
-                {TAG_COLORS.map((color) => (
+              {/* Color section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground font-medium">
+                    Color
+                  </span>
                   <button
-                    key={color}
-                    onClick={() => setNewTagColor(color)}
-                    className={`w-6 h-6 rounded-full transition-transform cursor-pointer ${
-                      newTagColor === color
-                        ? "scale-125 ring-2 ring-offset-1 ring-primary"
-                        : ""
+                    onClick={() => setUseAutoColor(!useAutoColor)}
+                    className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-md transition-colors cursor-pointer ${
+                      useAutoColor
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent"
                     }`}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
+                    title="Auto-generate color from name"
+                  >
+                    <Palette className="w-3 h-3" />
+                    Auto
+                  </button>
+                </div>
+                {!useAutoColor && (
+                  <div className="flex gap-1.5 flex-wrap">
+                    {TAG_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setNewTagColor(color)}
+                        className={`w-6 h-6 rounded-full transition-transform cursor-pointer ${
+                          newTagColor === color
+                            ? "scale-125 ring-2 ring-offset-1 ring-primary"
+                            : ""
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                    {/* Custom color input */}
+                    <label className="relative w-6 h-6 rounded-full cursor-pointer overflow-hidden border-2 border-dashed border-border hover:border-primary transition-colors">
+                      <input
+                        type="color"
+                        value={newTagColor}
+                        onChange={(e) => setNewTagColor(e.target.value)}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      />
+                      <span
+                        className="block w-full h-full rounded-full"
+                        style={{ backgroundColor: newTagColor }}
+                      />
+                    </label>
+                  </div>
+                )}
+                {useAutoColor && newTagName.trim() && (
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-5 h-5 rounded-full shrink-0"
+                      style={{ backgroundColor: effectiveColor }}
+                    />
+                    <span className="text-[11px] text-muted-foreground font-mono">
+                      {effectiveColor}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setNewTagColor(effectiveColor);
+                        setUseAutoColor(false);
+                      }}
+                      className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      Customize
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -148,7 +267,11 @@ export function TagPicker({
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => setShowCreate(false)}
+                  onClick={() => {
+                    setShowCreate(false);
+                    setNewTagName("");
+                    setUseAutoColor(true);
+                  }}
                 >
                   Cancel
                 </Button>

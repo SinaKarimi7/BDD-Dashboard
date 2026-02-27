@@ -87,6 +87,7 @@ export function GitHubSyncPage() {
   );
   const setGitHubConnection = useAppStore((s) => s.setGitHubConnection);
   const importFeatures = useAppStore((s) => s.importFeatures);
+  const updateFeature = useAppStore((s) => s.updateFeature);
   const addGitHubFileMapping = useAppStore((s) => s.addGitHubFileMapping);
   const updateGitHubFileMapping = useAppStore((s) => s.updateGitHubFileMapping);
   const deleteFeature = useAppStore((s) => s.deleteFeature);
@@ -172,6 +173,7 @@ export function GitHubSyncPage() {
             features={features}
             mappings={githubFileMappings}
             onImport={importFeatures}
+            onUpdateFeature={updateFeature}
             onMapFile={addGitHubFileMapping}
             onDeleteFeature={deleteFeature}
             onSwitchTab={() => setActiveTab("connection")}
@@ -1051,6 +1053,7 @@ function PullTab({
   features,
   mappings,
   onImport,
+  onUpdateFeature,
   onMapFile,
   onDeleteFeature,
   onSwitchTab,
@@ -1060,6 +1063,7 @@ function PullTab({
   features: Feature[];
   mappings: GitHubFileMapping[];
   onImport: (projectId: string, features: Feature[]) => void;
+  onUpdateFeature: (id: string, updates: Partial<Feature>) => void;
   onMapFile: (mapping: GitHubFileMapping) => void;
   onDeleteFeature: (id: string) => void;
   onSwitchTab: () => void;
@@ -1165,40 +1169,146 @@ function PullTab({
         return;
       }
 
-      // Import features and track file mappings
-      const featureData = parsed.map((p) => p.feature);
-      onImport(projectId, featureData);
+      // Separate files that already have mappings (re-imports) from new imports
+      const newParsed: typeof parsed = [];
+      const reImported: typeof parsed = [];
+      let updatedCount = 0;
 
-      // We need to get the newly created feature IDs
-      // Since importFeatures generates new IDs, we wait a tick and read from store
-      setTimeout(() => {
-        const state = useAppStore.getState();
-        const projectFeatures = state.features
-          .filter((f) => f.projectId === projectId)
-          .sort((a, b) => a.position - b.position);
+      for (const p of parsed) {
+        const existingMapping = mappings.find((m) => m.filePath === p.filePath);
+        // Also check by feature name for features imported via file drop
+        const existingByName = !existingMapping
+          ? features.find(
+              (f) => f.name.toLowerCase() === p.feature.name.toLowerCase(),
+            )
+          : null;
 
-        // Map the last N features (just imported)
-        const importedFeatures = projectFeatures.slice(-parsed.length);
-        importedFeatures.forEach((f, i) => {
-          if (parsed[i]) {
-            // Store the round-tripped Gherkin so the Push tab comparison
-            // matches — raw file content may differ from our generator output
-            const roundTripped = featureToGherkin(f);
+        if (existingMapping) {
+          // Re-import: update existing feature
+          const existingFeature = features.find(
+            (f) => f.id === existingMapping.featureId,
+          );
+          if (existingFeature) {
+            onUpdateFeature(existingFeature.id, {
+              name: p.feature.name,
+              description: p.feature.description,
+              folderPath: p.feature.folderPath,
+              scenarios: p.feature.scenarios.map((s: any, i: number) => ({
+                ...s,
+                id: s.id || `${existingFeature.id}-s${i}`,
+                featureId: existingFeature.id,
+              })),
+              background: p.feature.background,
+              tags: p.feature.tags,
+              headerComments: p.feature.headerComments,
+            });
+            // Update the mapping
+            const roundTripped = featureToGherkin({
+              ...existingFeature,
+              name: p.feature.name,
+              description: p.feature.description,
+              scenarios: p.feature.scenarios,
+              background: p.feature.background,
+              tags: p.feature.tags,
+              headerComments: p.feature.headerComments,
+            });
             onMapFile({
-              featureId: f.id,
-              filePath: parsed[i].filePath,
-              sha: parsed[i].sha,
+              featureId: existingFeature.id,
+              filePath: p.filePath,
+              sha: p.sha,
               lastSyncedContent: roundTripped,
               lastSyncedAt: new Date().toISOString(),
             });
+            updatedCount++;
+            reImported.push(p);
+          } else {
+            newParsed.push(p);
           }
-        });
+        } else if (existingByName) {
+          // Match by name: update existing feature and create mapping
+          onUpdateFeature(existingByName.id, {
+            name: p.feature.name,
+            description: p.feature.description,
+            folderPath: p.feature.folderPath,
+            scenarios: p.feature.scenarios.map((s: any, i: number) => ({
+              ...s,
+              id: s.id || `${existingByName.id}-s${i}`,
+              featureId: existingByName.id,
+            })),
+            background: p.feature.background,
+            tags: p.feature.tags,
+            headerComments: p.feature.headerComments,
+          });
+          const roundTripped = featureToGherkin({
+            ...existingByName,
+            name: p.feature.name,
+            description: p.feature.description,
+            scenarios: p.feature.scenarios,
+            background: p.feature.background,
+            tags: p.feature.tags,
+            headerComments: p.feature.headerComments,
+          });
+          onMapFile({
+            featureId: existingByName.id,
+            filePath: p.filePath,
+            sha: p.sha,
+            lastSyncedContent: roundTripped,
+            lastSyncedAt: new Date().toISOString(),
+          });
+          updatedCount++;
+          reImported.push(p);
+        } else {
+          newParsed.push(p);
+        }
+      }
 
-        setImportResult(
-          `Successfully imported ${parsed.length} feature file${parsed.length !== 1 ? "s" : ""}.`,
-        );
+      // Import truly new features
+      if (newParsed.length > 0) {
+        const featureData = newParsed.map((p) => p.feature);
+        onImport(projectId, featureData);
+
+        // Map newly created features
+        setTimeout(() => {
+          const state = useAppStore.getState();
+          const projectFeatures = state.features
+            .filter((f) => f.projectId === projectId)
+            .sort((a, b) => a.position - b.position);
+
+          const importedFeatures = projectFeatures.slice(-newParsed.length);
+          importedFeatures.forEach((f, i) => {
+            if (newParsed[i]) {
+              const roundTripped = featureToGherkin(f);
+              onMapFile({
+                featureId: f.id,
+                filePath: newParsed[i].filePath,
+                sha: newParsed[i].sha,
+                lastSyncedContent: roundTripped,
+                lastSyncedAt: new Date().toISOString(),
+              });
+            }
+          });
+
+          const parts = [];
+          if (newParsed.length > 0)
+            parts.push(
+              `${newParsed.length} new feature${newParsed.length !== 1 ? "s" : ""} imported`,
+            );
+          if (updatedCount > 0)
+            parts.push(
+              `${updatedCount} existing feature${updatedCount !== 1 ? "s" : ""} updated`,
+            );
+          setImportResult(parts.join(", ") + ".");
+          setSelectedFiles(new Set());
+        }, 100);
+      } else {
+        const parts = [];
+        if (updatedCount > 0)
+          parts.push(
+            `${updatedCount} existing feature${updatedCount !== 1 ? "s" : ""} updated`,
+          );
+        setImportResult(parts.join(", ") + ".");
         setSelectedFiles(new Set());
-      }, 100);
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {

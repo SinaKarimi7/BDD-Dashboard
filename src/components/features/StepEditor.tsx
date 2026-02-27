@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { Plus, GripVertical, Trash2, Table, X } from "lucide-react";
+import {
+  Plus,
+  GripVertical,
+  Trash2,
+  Table,
+  X,
+  ArrowDown,
+  ArrowRight,
+} from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -20,6 +28,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useAppStore } from "@/store";
 import type { Step, StepKeyword } from "@/types";
 import { Button } from "@/components/ui";
+import { pushUndo } from "@/hooks/useUndoRedo";
 
 interface StepEditorProps {
   featureId: string;
@@ -55,6 +64,7 @@ export function StepEditor({ featureId, scenarioId, steps }: StepEditorProps) {
 
   const handleAddStep = () => {
     if (!newText.trim()) return;
+    pushUndo(featureId, "Add step");
     addStep(featureId, scenarioId, {
       keyword: newKeyword,
       text: newText.trim(),
@@ -71,6 +81,7 @@ export function StepEditor({ featureId, scenarioId, steps }: StepEditorProps) {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
+    pushUndo(featureId, "Reorder steps");
     const oldIndex = sortedSteps.findIndex((s) => s.id === active.id);
     const newIndex = sortedSteps.findIndex((s) => s.id === over.id);
     const reordered = arrayMove(sortedSteps, oldIndex, newIndex);
@@ -106,7 +117,10 @@ export function StepEditor({ featureId, scenarioId, steps }: StepEditorProps) {
                 onUpdate={(updates) =>
                   updateStep(featureId, scenarioId, step.id, updates)
                 }
-                onDelete={() => deleteStep(featureId, scenarioId, step.id)}
+                onDelete={() => {
+                  pushUndo(featureId, "Delete step");
+                  deleteStep(featureId, scenarioId, step.id);
+                }}
               />
             ))}
           </div>
@@ -156,7 +170,12 @@ interface SortableStepRowProps {
   onDelete: () => void;
 }
 
-function SortableStepRow({ step, onUpdate, onDelete }: SortableStepRowProps) {
+function SortableStepRow({
+  step,
+  featureId,
+  onUpdate,
+  onDelete,
+}: SortableStepRowProps) {
   const {
     attributes,
     listeners,
@@ -175,6 +194,7 @@ function SortableStepRow({ step, onUpdate, onDelete }: SortableStepRowProps) {
 
   const save = () => {
     if (text.trim()) {
+      pushUndo(featureId, "Edit step text");
       onUpdate({ text: text.trim() });
     }
     setEditing(false);
@@ -185,10 +205,12 @@ function SortableStepRow({ step, onUpdate, onDelete }: SortableStepRowProps) {
   const hasTable = step.dataTable && step.dataTable.length > 0;
 
   const addDataTable = () => {
+    pushUndo(featureId, "Add data table");
     onUpdate({ dataTable: [["", ""]] });
   };
 
   const removeDataTable = () => {
+    pushUndo(featureId, "Remove data table");
     onUpdate({ dataTable: null });
   };
 
@@ -202,12 +224,23 @@ function SortableStepRow({ step, onUpdate, onDelete }: SortableStepRowProps) {
 
   const addRow = () => {
     if (!step.dataTable) return;
+    pushUndo(featureId, "Add table row");
     const cols = step.dataTable[0]?.length ?? 2;
     onUpdate({ dataTable: [...step.dataTable, Array(cols).fill("")] });
   };
 
+  const insertRowAt = (index: number) => {
+    if (!step.dataTable) return;
+    pushUndo(featureId, "Insert table row");
+    const cols = step.dataTable[0]?.length ?? 2;
+    const newTable = [...step.dataTable];
+    newTable.splice(index + 1, 0, Array(cols).fill(""));
+    onUpdate({ dataTable: newTable });
+  };
+
   const removeRow = (index: number) => {
     if (!step.dataTable) return;
+    pushUndo(featureId, "Remove table row");
     if (step.dataTable.length <= 1) {
       onUpdate({ dataTable: null });
       return;
@@ -217,11 +250,26 @@ function SortableStepRow({ step, onUpdate, onDelete }: SortableStepRowProps) {
 
   const addColumn = () => {
     if (!step.dataTable) return;
+    pushUndo(featureId, "Add table column");
     onUpdate({ dataTable: step.dataTable.map((r) => [...r, ""]) });
+  };
+
+  const insertColumnAt = (colIndex: number) => {
+    if (!step.dataTable) return;
+    pushUndo(featureId, "Insert table column");
+    const insertPos = colIndex + 1;
+    onUpdate({
+      dataTable: step.dataTable.map((r) => {
+        const newRow = [...r];
+        newRow.splice(insertPos, 0, "");
+        return newRow;
+      }),
+    });
   };
 
   const removeColumn = (colIndex: number) => {
     if (!step.dataTable) return;
+    pushUndo(featureId, "Remove table column");
     if (step.dataTable[0]?.length <= 1) {
       onUpdate({ dataTable: null });
       return;
@@ -253,7 +301,10 @@ function SortableStepRow({ step, onUpdate, onDelete }: SortableStepRowProps) {
 
         <select
           value={step.keyword}
-          onChange={(e) => onUpdate({ keyword: e.target.value as StepKeyword })}
+          onChange={(e) => {
+            pushUndo(featureId, "Change step keyword");
+            onUpdate({ keyword: e.target.value as StepKeyword });
+          }}
           className={`shrink-0 bg-transparent text-xs font-bold focus:outline-none cursor-pointer ${kwColor}`}
         >
           {KEYWORDS.map((kw) => (
@@ -314,11 +365,53 @@ function SortableStepRow({ step, onUpdate, onDelete }: SortableStepRowProps) {
           <div className="rounded-lg border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
+                {/* Column header row with remove buttons */}
+                <thead>
+                  <tr>
+                    {step.dataTable[0]?.map((_, ci) => (
+                      <th key={ci} className="p-0">
+                        <div className="flex items-center justify-center gap-0.5 px-1 py-0.5">
+                          <button
+                            onClick={() => {
+                              if (!step.dataTable) return;
+                              onUpdate({
+                                dataTable: step.dataTable.map((r) => {
+                                  const newRow = [...r];
+                                  newRow.splice(ci, 0, "");
+                                  return newRow;
+                                }),
+                              });
+                            }}
+                            className="text-muted-foreground/40 hover:text-primary transition-colors cursor-pointer p-0.5"
+                            title="Insert column before"
+                          >
+                            <ArrowRight className="w-2.5 h-2.5 rotate-180" />
+                          </button>
+                          <button
+                            onClick={() => removeColumn(ci)}
+                            className="text-muted-foreground/40 hover:text-destructive transition-colors cursor-pointer p-0.5"
+                            title="Remove column"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                          <button
+                            onClick={() => insertColumnAt(ci)}
+                            className="text-muted-foreground/40 hover:text-primary transition-colors cursor-pointer p-0.5"
+                            title="Insert column after"
+                          >
+                            <ArrowRight className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      </th>
+                    ))}
+                    <th className="w-8" />
+                  </tr>
+                </thead>
                 <tbody>
                   {step.dataTable.map((row, ri) => (
                     <tr
                       key={ri}
-                      className={`border-b border-border/50 last:border-b-0 ${ri === 0 ? "bg-muted/40 font-semibold" : "hover:bg-muted/20"}`}
+                      className={`border-b border-border/50 last:border-b-0 group/row ${ri === 0 ? "bg-muted/40 font-semibold" : "hover:bg-muted/20"}`}
                     >
                       {row.map((cell, ci) => (
                         <td key={ci} className="p-0">
@@ -330,13 +423,22 @@ function SortableStepRow({ step, onUpdate, onDelete }: SortableStepRowProps) {
                           />
                         </td>
                       ))}
-                      <td className="w-8 p-0">
-                        <button
-                          onClick={() => removeRow(ri)}
-                          className="flex items-center justify-center w-full py-1.5 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
+                      <td className="w-16 p-0">
+                        <div className="flex items-center">
+                          <button
+                            onClick={() => insertRowAt(ri)}
+                            className="flex items-center justify-center py-1.5 px-1 text-muted-foreground/40 opacity-0 group-hover/row:opacity-100 hover:text-primary transition-all cursor-pointer"
+                            title="Insert row below"
+                          >
+                            <ArrowDown className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => removeRow(ri)}
+                            className="flex items-center justify-center py-1.5 px-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -356,14 +458,6 @@ function SortableStepRow({ step, onUpdate, onDelete }: SortableStepRowProps) {
               >
                 <Plus className="w-3 h-3" /> Column
               </button>
-              {step.dataTable[0] && step.dataTable[0].length > 1 && (
-                <button
-                  onClick={() => removeColumn(step.dataTable!![0].length - 1)}
-                  className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-muted-foreground hover:text-destructive rounded hover:bg-accent transition-colors cursor-pointer ml-auto"
-                >
-                  <Trash2 className="w-3 h-3" /> Last column
-                </button>
-              )}
             </div>
           </div>
         </div>
