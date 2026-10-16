@@ -140,7 +140,8 @@ To use OAuth:
 
 ## Data & Privacy
 
-Projects stay in browser local storage. GitHub Sync is the exception: the browser calls the GitHub API with a GitHub token, and OAuth sends the authorization code to your own `/api/github/callback` so the client secret stays off the page.
+Projects stay in browser local storage. 
+Optionnaly, you can add GitHub Sync to store your .feature in your github repository.
 
 ---
 
