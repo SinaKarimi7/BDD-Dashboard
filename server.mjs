@@ -2,6 +2,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { handleGitHubCallback } from "./server/github-callback.mjs";
+import { publicConfigScript } from "./server/public-config.mjs";
 import { staticRel } from "./server/static-path.mjs";
 
 try {
@@ -13,7 +14,6 @@ try {
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
 const API_ONLY = process.env.API_ONLY === "1";
-const API_UPSTREAM = process.env.API_UPSTREAM || "";
 const DIST = path.resolve("dist");
 
 const TYPES = {
@@ -43,26 +43,6 @@ function sendFile(res, file) {
   fs.createReadStream(file).pipe(res);
 }
 
-function proxyApi(req, res) {
-  const target = new URL(req.url || "/", API_UPSTREAM);
-  const headers = { ...req.headers, host: target.host };
-  delete headers.connection;
-  delete headers["transfer-encoding"];
-  const preq = http.request(target, { method: req.method, headers }, (pres) => {
-    const out = { ...pres.headers };
-    delete out.connection;
-    delete out["transfer-encoding"];
-    res.writeHead(pres.statusCode || 502, out);
-    pres.pipe(res);
-  });
-  preq.on("error", () => {
-    if (res.headersSent) return;
-    res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end("API unavailable");
-  });
-  req.pipe(preq);
-}
-
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   if (url.pathname === "/health") {
@@ -70,8 +50,12 @@ const server = http.createServer(async (req, res) => {
     res.end("ok");
     return;
   }
-  if (API_UPSTREAM && url.pathname.startsWith("/api/")) {
-    proxyApi(req, res);
+  if (url.pathname === "/config.js") {
+    res.writeHead(200, {
+      "Content-Type": "text/javascript; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end(publicConfigScript());
     return;
   }
   if (url.pathname === "/api/github/callback") {
@@ -119,5 +103,6 @@ server.on("close", () => {
 process.on("SIGINT", () => server.close());
 process.on("SIGTERM", () => server.close());
 server.listen(PORT, HOST, () => {
-  console.log(`http://${HOST}:${PORT}`);
+  const mode = API_ONLY ? "api only" : "api/app";
+  console.log(`listen on ${HOST}:${PORT}, ${mode}`);
 });

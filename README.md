@@ -73,7 +73,7 @@ Open [http://localhost:5173](http://localhost:5173) and start writing features.
 
 ## Install
 
-You are putting the dashboard somewhere people can open it. Pick one way. OAuth env vars live in `.env.example`. `VITE_GITHUB_CLIENT_ID` is required in the browser for OAuth and has no default. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are required on the API and have no default. `PORT` defaults to `3000`. `HOST` defaults to `0.0.0.0` for `npm start`.
+You are putting the dashboard somewhere people can open it. Pick one way. OAuth env vars live in `.env.example`. `VITE_GITHUB_CLIENT_ID` is required in the browser for OAuth and has no default. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are required on the server for OAuth and have no default. The Docker site opens without them. `PORT` defaults to `3000`. `HOST` defaults to `0.0.0.0` for `npm start`. `API_ONLY` is optional and defaults to unset, which serves the site and the callback. Set `API_ONLY=1` to skip files. Docker reads `VITE_GITHUB_CLIENT_ID`, `VITE_API_ORIGIN`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY` when the container starts. A static host bakes those four at build time. `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are optional. Empty values use placeholders.
 
 ### 1. Browser only
 
@@ -100,16 +100,19 @@ VITE_GITHUB_CLIENT_ID=your_id VITE_API_ORIGIN=https://<project>.vercel.app npm r
 
 Publish `dist/` at the site root (a GitHub user site). The app routes are `/projects/...`. `VITE_API_ORIGIN` and `APP_ORIGIN` stay empty when the site and the API share a host.
 
-### 3. nginx + Node
+### 3. Docker
 
-nginx serves the files on your own host and forwards `/api` to the Node process. Copy `.env.example` to `.env` first. Compose reads `.env` and gives it to `api`. `PORT` is the host port in front of nginx.
+You need Docker. One process serves the site and `GET /api/github/callback`.
 
 ```bash
-cp .env.example .env
 docker compose up --build
 ```
 
-Open `http://localhost:3000`. The GitHub callback is that origin plus `/api/github/callback`. The image build is the same for every install. Set `VITE_GITHUB_CLIENT_ID` when you run `npm run build` for Pages or for the browser-only files.
+Open [http://localhost:3000](http://localhost:3000). The site opens before GitHub OAuth is set up.
+
+Compose reads `.env` when that file is present. If a variable is not set there, Compose uses the environment variable of the same name. `PORT` is the host port. The process listens on 3000 inside the container. Leave `API_ONLY` unset. Set `API_ONLY=1` when this process should not serve files.
+
+For OAuth, copy `.env.example` to `.env` and set `VITE_GITHUB_CLIENT_ID`, `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET`. The GitHub callback URL is `http://localhost:3000/api/github/callback`. Restart after changing `.env`. You can set those same variables in the environment instead of in `.env`.
 
 ---
 

@@ -2,18 +2,15 @@
 // Uses the GitHub REST API directly with fetch. No external deps needed.
 
 import type { GitHubRepo, GitHubBranch, GitHubContentItem } from "@/types";
+import { publicEnv } from "@/lib/public-env";
 
 const API = "https://api.github.com";
 
 // ─── OAuth ──────────────────────────────────────────────────
 
-const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID as
-  | string
-  | undefined;
+const GITHUB_CLIENT_ID = publicEnv("VITE_GITHUB_CLIENT_ID");
 
-const API_ORIGIN = (
-  import.meta.env.VITE_API_ORIGIN as string | undefined
-)?.replace(/\/$/, "");
+const API_ORIGIN = publicEnv("VITE_API_ORIGIN").replace(/\/$/, "");
 
 /**
  * Start the GitHub OAuth flow by redirecting to GitHub's authorize page.
