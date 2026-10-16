@@ -67,7 +67,49 @@ Open [http://localhost:5173](http://localhost:5173) and start writing features.
 | `npm run dev` | Start development server with HMR |
 | `npm run build` | Type-check and build for production |
 | `npm run preview` | Preview the production build locally |
+| `npm run start` | Serve `dist/` and `GET /api/github/callback` |
 | `npm run lint` | Run ESLint across the codebase |
+| `npm test` | Run the OAuth callback checks |
+
+## Install
+
+You are putting the dashboard somewhere people can open it. Pick one way. OAuth env vars live in `.env.example`. `VITE_GITHUB_CLIENT_ID` is required in the browser for OAuth and has no default. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are required on the API and have no default. `PORT` defaults to `3000`. `HOST` defaults to `0.0.0.0` for `npm start`.
+
+### 1. Browser only
+
+Serve the built HTML, CSS, and JS. There is no API, so GitHub OAuth is off. A personal access token on the GitHub screen still works.
+
+```bash
+npm install
+npm run build
+```
+
+Host the `dist/` directory. Client routes such as `/projects/abc/github` must return `index.html`.
+
+### 2. GitHub Pages + Vercel
+
+GitHub Pages serves `dist/`. Vercel runs only `api/github/callback.js`.
+
+On Vercel, set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `APP_ORIGIN` to the Pages origin (`https://<user>.github.io`). The GitHub OAuth callback URL is `https://<project>.vercel.app/api/github/callback`.
+
+Build the files with the client id and that Vercel origin:
+
+```bash
+VITE_GITHUB_CLIENT_ID=your_id VITE_API_ORIGIN=https://<project>.vercel.app npm run build
+```
+
+Publish `dist/` at the site root (a GitHub user site). The app routes are `/projects/...`. `VITE_API_ORIGIN` and `APP_ORIGIN` stay empty when the site and the API share a host.
+
+### 3. nginx + Node
+
+nginx serves the files on your own host and forwards `/api` to the Node process. Copy `.env.example` to `.env` first. Compose reads `.env` and gives it to `api`. `PORT` is the host port in front of nginx.
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Open `http://localhost:3000`. The GitHub callback is that origin plus `/api/github/callback`. The image build is the same for every install. Set `VITE_GITHUB_CLIENT_ID` when you run `npm run build` for Pages or for the browser-only files.
 
 ---
 

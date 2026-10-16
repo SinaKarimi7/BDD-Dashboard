@@ -1,0 +1,17 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file:
+      - .env
+    environment:
+      PORT: "3000"
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    ports:
+      - "${PORT:-3000}:80"
+    depends_on:
+      - api

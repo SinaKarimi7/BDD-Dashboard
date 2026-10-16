@@ -11,9 +11,14 @@ const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID as
   | string
   | undefined;
 
+const API_ORIGIN = (
+  import.meta.env.VITE_API_ORIGIN as string | undefined
+)?.replace(/\/$/, "");
+
 /**
  * Start the GitHub OAuth flow by redirecting to GitHub's authorize page.
- * The Vercel serverless function at /api/github/callback handles the token exchange.
+ * GET /api/github/callback exchanges the code.
+ * VITE_API_ORIGIN points at that host when the site is hosted somewhere else.
  */
 export function startOAuthFlow(redirectPath: string) {
   if (!GITHUB_CLIENT_ID) {
@@ -25,7 +30,7 @@ export function startOAuthFlow(redirectPath: string) {
   const params = new URLSearchParams({
     client_id: GITHUB_CLIENT_ID,
     scope: "repo",
-    redirect_uri: `${window.location.origin}/api/github/callback`,
+    redirect_uri: `${API_ORIGIN || window.location.origin}/api/github/callback`,
     state: redirectPath,
   });
 
