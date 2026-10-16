@@ -116,7 +116,7 @@ export function LandingPage() {
     },
     {
       q: "Is my data stored on a server?",
-      a: "No data leaves your machine. Everything is stored in your browser's local storage. You own your data, period.",
+      a: "Projects stay in this browser's local storage. GitHub Sync sends feature files only to the repository you connect.",
     },
     {
       q: "Is BDD Dashboard really free?",

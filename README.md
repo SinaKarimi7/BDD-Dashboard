@@ -83,6 +83,7 @@ src/
 │   ├── BoardViewPage.tsx
 │   ├── TagsPage.tsx
 │   ├── ExportPage.tsx
+│   ├── GitHubSyncPage.tsx
 │   └── SettingsPage.tsx
 ├── components/
 │   ├── features/     # Domain-specific components (editor, preview, tags…)
@@ -126,9 +127,20 @@ Project → Feature Editor → Board View → Drag to reorder → Edit inline �
 
 ---
 
+## GitHub Sync
+
+Projects stay in the browser. GitHub Sync pulls and pushes `.feature` files through a GitHub **OAuth App**. It needs a Vercel deploy to run `api/github/callback.ts`.
+
+To use OAuth:
+
+1. Copy `.env.example` to `.env` where the app is built and hosted.
+2. Set `VITE_GITHUB_CLIENT_ID` (public, no default), `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET` (server only, no defaults). They only enable "Connect with GitHub OAuth". The page has no fields for those values.
+3. Set the OAuth App callback URL to `https://<your-vercel-host>/api/github/callback`.
+
+
 ## Data & Privacy
 
-Everything runs locally in your browser. **No data is sent to any server.** State is persisted in browser local storage. You own your data, period.
+Projects stay in browser local storage. GitHub Sync is the exception: the browser calls the GitHub API with a GitHub token, and OAuth sends the authorization code to your own `/api/github/callback` so the client secret stays off the page.
 
 ---
 
