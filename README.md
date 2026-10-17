@@ -41,7 +41,7 @@ One click for a single `.feature`. One click for a ZIP with proper folder struct
 ## Getting Started
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) v18+
+- [Node.js](https://nodejs.org/) v22.18+
 - npm, pnpm, or yarn
 
 ### Install & Run
@@ -88,7 +88,7 @@ Host the `dist/` directory. Client routes such as `/projects/abc/github` must re
 
 ### 2. GitHub Pages + Vercel
 
-GitHub Pages serves `dist/`. Vercel runs only `api/github/callback.js`.
+GitHub Pages serves `dist/`. Vercel runs only `api/github/callback.ts`.
 
 On Vercel, set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `APP_ORIGIN` to the Pages origin (`https://<user>.github.io`). The GitHub OAuth callback URL is `https://<project>.vercel.app/api/github/callback`.
 

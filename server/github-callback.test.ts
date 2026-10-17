@@ -1,21 +1,28 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "node:test";
 import {
   handleGitHubCallback,
   safeAppOrigin,
   safeRedirectPath,
-} from "./github-callback.mjs";
+  type HttpResponse,
+} from "./github-callback.ts";
 
-function mockRes() {
+interface MockResponse extends HttpResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
+function mockRes(): MockResponse {
   return {
     status: 0,
     headers: {},
     body: "",
-    writeHead(status, headers) {
+    writeHead(status: number, headers?: Record<string, string>) {
       this.status = status;
       this.headers = headers ?? {};
     },
-    end(body) {
+    end(body?: string) {
       this.body = body ?? "";
     },
   };

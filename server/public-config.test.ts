@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { publicConfigScript } from "./public-config.mjs";
+import { test } from "node:test";
+import { publicConfigScript } from "./public-config.ts";
 
 test("writes public env into the browser script", () => {
   const script = publicConfigScript({

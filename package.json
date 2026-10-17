@@ -8,8 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "node server.mjs",
-    "test": "node --test server/"
+    "start": "node server.ts",
+    "test": "node --test server/*.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

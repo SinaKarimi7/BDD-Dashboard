@@ -1,6 +1,6 @@
 const SAFE = /^\/[A-Za-z0-9._/-]*$/;
 
-export function staticRel(urlPath) {
+export function staticRel(urlPath: unknown): string | null {
   if (typeof urlPath !== "string" || !SAFE.test(urlPath)) return null;
   const rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
   const parts = rel.split("/");

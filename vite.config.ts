@@ -8,7 +8,7 @@ import {
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import { handleGitHubCallback } from "./server/github-callback.mjs";
+import { handleGitHubCallback } from "./server/github-callback.ts";
 
 function githubCallback(): Plugin {
   const attach = (middlewares: Connect.Server) => {

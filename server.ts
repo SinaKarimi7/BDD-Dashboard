@@ -1,9 +1,9 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { handleGitHubCallback } from "./server/github-callback.mjs";
-import { publicConfigScript } from "./server/public-config.mjs";
-import { staticRel } from "./server/static-path.mjs";
+import { handleGitHubCallback } from "./server/github-callback.ts";
+import { publicConfigScript } from "./server/public-config.ts";
+import { staticRel } from "./server/static-path.ts";
 
 try {
   process.loadEnvFile();
@@ -16,7 +16,7 @@ const HOST = process.env.HOST || "0.0.0.0";
 const API_ONLY = process.env.API_ONLY === "1";
 const DIST = path.resolve("dist");
 
-const TYPES = {
+const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -28,7 +28,7 @@ const TYPES = {
   ".webp": "image/webp",
 };
 
-function fileFor(urlPath) {
+function fileFor(urlPath: string): string | null {
   const rel = staticRel(urlPath);
   if (!rel) return null;
   const full = path.resolve(DIST, rel);
@@ -37,7 +37,7 @@ function fileFor(urlPath) {
   return full;
 }
 
-function sendFile(res, file) {
+function sendFile(res: http.ServerResponse, file: string): void {
   const type = TYPES[path.extname(file)] || "application/octet-stream";
   res.writeHead(200, { "Content-Type": type });
   fs.createReadStream(file).pipe(res);
@@ -93,7 +93,7 @@ const server = http.createServer(async (req, res) => {
   res.end();
 });
 
-server.on("error", (err) => {
+server.on("error", (err: unknown) => {
   console.error(err instanceof Error ? err.message : "server failed");
   process.exit(1);
 });

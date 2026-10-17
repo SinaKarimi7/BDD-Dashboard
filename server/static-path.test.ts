@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { staticRel } from "./static-path.mjs";
+import { test } from "node:test";
+import { staticRel } from "./static-path.ts";
 
 test("allows site paths", () => {
   assert.equal(staticRel("/"), "index.html");
