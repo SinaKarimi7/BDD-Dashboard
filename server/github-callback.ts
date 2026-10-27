@@ -7,10 +7,12 @@ export interface HttpResponse {
 
 type TokenFetch = (url: string, init: RequestInit) => Promise<{ json(): Promise<unknown> }>;
 
+// One leading "/", then path characters only. Browsers drop tab and newline
+// from URLs, so "/\t/evil.example" would otherwise become "//evil.example".
+const SAFE_STATE = /^\/(?!\/)[A-Za-z0-9._~/-]*$/;
+
 export function safeRedirectPath(state: unknown): string {
-  if (typeof state !== "string") return "/";
-  if (!state.startsWith("/") || state.startsWith("//")) return "/";
-  if (state.includes("\\") || state.includes("://")) return "/";
+  if (typeof state !== "string" || !SAFE_STATE.test(state)) return "/";
   return state;
 }
 
@@ -32,8 +34,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function redirectTarget(path: string): string {
-  return `${safeAppOrigin(process.env.APP_ORIGIN)}${path}`;
+function redirectTarget(env: NodeJS.ProcessEnv, path: string): string {
+  return `${safeAppOrigin(env.APP_ORIGIN)}${path}`;
 }
 
 function redirect(res: HttpResponse, location: string): void {
@@ -62,12 +64,13 @@ export async function handleGitHubCallback(
   url: URL,
   res: HttpResponse,
   fetchImpl: TokenFetch = fetch,
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<void> {
   const code = url.searchParams.get("code");
   if (!code) return json(res, 400, { error: "Missing authorization code" });
 
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+  const clientId = env.GITHUB_CLIENT_ID;
+  const clientSecret = env.GITHUB_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
     return json(res, 500, {
       error: "GitHub OAuth is not configured on the server.",
@@ -91,22 +94,22 @@ export async function handleGitHubCallback(
     const data = isRecord(payload) ? payload : {};
     const message = oauthError(data);
     if (message) {
-      return redirect(res, redirectTarget(`/?github_error=${encodeURIComponent(message)}`));
+      return redirect(res, redirectTarget(env, `/?github_error=${encodeURIComponent(message)}`));
     }
     const token = accessToken(data);
     if (!token) {
       return redirect(
         res,
-        redirectTarget(`/?github_error=${encodeURIComponent("OAuth token exchange failed")}`),
+        redirectTarget(env, `/?github_error=${encodeURIComponent("OAuth token exchange failed")}`),
       );
     }
     const path = safeRedirectPath(url.searchParams.get("state"));
     return redirect(
       res,
-      redirectTarget(`${path}#github_token=${encodeURIComponent(token)}`),
+      redirectTarget(env, `${path}#github_token=${encodeURIComponent(token)}`),
     );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "OAuth token exchange failed";
-    return redirect(res, redirectTarget(`/?github_error=${encodeURIComponent(message)}`));
+    return redirect(res, redirectTarget(env, `/?github_error=${encodeURIComponent(message)}`));
   }
 }
