@@ -7,6 +7,9 @@ import { Button, Card, CardContent, Select } from "@/components/ui";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { PageTransition } from "@/components/animation";
 import { easing, duration } from "@/lib/motion";
+import { gherkinLanguages, isGherkinLanguage } from "@/lib/gherkin";
+
+const languageOptions = gherkinLanguages();
 
 export function SystemSettingsPage() {
   const systemSettings = useAppStore((s) => s.systemSettings);
@@ -18,9 +21,10 @@ export function SystemSettingsPage() {
   const [autoSave, setAutoSave] = useState(
     systemSettings?.autoSaveDrafts ?? true,
   );
-  const [gherkinLang, setGherkinLang] = useState(
-    systemSettings?.gherkinLanguage || "en",
-  );
+  const [gherkinLang, setGherkinLang] = useState(() => {
+    const saved = systemSettings?.gherkinLanguage;
+    return saved && isGherkinLanguage(saved) ? saved : "en";
+  });
   const [exportFormat, setExportFormat] = useState<"feature" | "json">(
     systemSettings?.exportFormat || "feature",
   );
@@ -66,9 +70,7 @@ export function SystemSettingsPage() {
                 <Select
                   label="Default Status for New Scenarios"
                   value={defaultStatus}
-                  onChange={(e) =>
-                    setDefaultStatus(e.target.value as TriageStatus)
-                  }
+                  onChange={setDefaultStatus}
                   options={[
                     { value: "backlog", label: "Backlog" },
                     { value: "todo", label: "To Do" },
@@ -80,9 +82,7 @@ export function SystemSettingsPage() {
                 <Select
                   label="Default Export Format"
                   value={exportFormat}
-                  onChange={(e) =>
-                    setExportFormat(e.target.value as "feature" | "json")
-                  }
+                  onChange={setExportFormat}
                   options={[
                     { value: "feature", label: "Gherkin (.feature)" },
                     { value: "json", label: "JSON (.json)" },
@@ -92,17 +92,9 @@ export function SystemSettingsPage() {
                 <Select
                   label="Gherkin Language"
                   value={gherkinLang}
-                  onChange={(e) => setGherkinLang(e.target.value)}
-                  options={[
-                    { value: "en", label: "English" },
-                    { value: "fr", label: "French (Français)" },
-                    { value: "de", label: "German (Deutsch)" },
-                    { value: "es", label: "Spanish (Español)" },
-                    { value: "pt", label: "Portuguese (Português)" },
-                    { value: "ja", label: "Japanese (日本語)" },
-                    { value: "zh", label: "Chinese (中文)" },
-                    { value: "ru", label: "Russian (Русский)" },
-                  ]}
+                  onChange={setGherkinLang}
+                  options={languageOptions}
+                  searchable
                 />
               </div>
             </CardContent>

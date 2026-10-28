@@ -27,24 +27,16 @@ import { CSS } from "@dnd-kit/utilities";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/store";
 import type { Background, Step, StepKeyword } from "@/types";
-import { Button } from "@/components/ui";
+import { Button, Select } from "@/components/ui";
 import { pushUndo } from "@/hooks/useUndoRedo";
 import { collapseTransition } from "@/lib/motion";
-import { stepKeywordLabel } from "@/lib/gherkin";
+import { keywordOptions } from "./keywordOptions";
 
 interface BackgroundEditorProps {
   featureId: string;
   background: Background | null;
 }
 
-// Labels come from the feature's language (see stepKeywordLabel)
-const KEYWORDS: { value: StepKeyword; color: string }[] = [
-  { value: "Given", color: "text-blue-600" },
-  { value: "When", color: "text-amber-600" },
-  { value: "Then", color: "text-green-600" },
-  { value: "And", color: "text-gray-500" },
-  { value: "But", color: "text-red-500" },
-];
 
 export function BackgroundEditor({
   featureId,
@@ -258,17 +250,13 @@ export function BackgroundEditor({
 
               {/* Add step row */}
               <div className="flex items-center gap-2">
-                <select
+                <Select
                   value={newKeyword}
-                  onChange={(e) => setNewKeyword(e.target.value as StepKeyword)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {KEYWORDS.map((k) => (
-                    <option key={k.value} value={k.value}>
-                      {stepKeywordLabel(k.value, language)}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setNewKeyword}
+                  options={keywordOptions(language)}
+                  aria-label="Keyword for the new step"
+                  className="h-8 w-auto shrink-0 rounded-md px-2 text-sm font-medium"
+                />
                 <input
                   value={newText}
                   onChange={(e) => setNewText(e.target.value)}
@@ -327,9 +315,6 @@ function SortableBgStep({
     transition,
   };
 
-  const kwColor =
-    KEYWORDS.find((k) => k.value === step.keyword)?.color ?? "text-gray-500";
-
   return (
     <div
       ref={setNodeRef}
@@ -346,19 +331,14 @@ function SortableBgStep({
         <GripVertical className="w-3.5 h-3.5" />
       </button>
 
-      <select
+      <Select
+        variant="inline"
         value={step.keyword}
-        onChange={(e) =>
-          onUpdate(step.id, { keyword: e.target.value as StepKeyword })
-        }
-        className={`bg-transparent text-sm font-medium outline-none cursor-pointer ${kwColor}`}
-      >
-        {KEYWORDS.map((k) => (
-          <option key={k.value} value={k.value}>
-            {stepKeywordLabel(k.value, language, step)}
-          </option>
-        ))}
-      </select>
+        onChange={(keyword) => onUpdate(step.id, { keyword })}
+        options={keywordOptions(language, step)}
+        aria-label="Step keyword"
+        className="shrink-0 text-sm font-medium"
+      />
 
       <input
         value={step.text}

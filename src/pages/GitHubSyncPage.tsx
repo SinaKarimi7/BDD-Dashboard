@@ -1024,7 +1024,8 @@ function ConnectionTab({
               <Select
                 label="Branch"
                 value={selectedBranch}
-                onChange={(e) => setSelectedBranch(e.target.value)}
+                onChange={setSelectedBranch}
+                searchable={branches.length > 8}
                 options={branches.map((b) => ({
                   value: b.name,
                   label: b.name,

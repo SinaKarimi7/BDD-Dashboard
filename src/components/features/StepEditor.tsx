@@ -27,9 +27,9 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useAppStore } from "@/store";
 import type { Step, StepKeyword } from "@/types";
-import { Button } from "@/components/ui";
+import { Button, Select } from "@/components/ui";
 import { pushUndo } from "@/hooks/useUndoRedo";
-import { stepKeywordLabel } from "@/lib/gherkin";
+import { keywordOptions } from "./keywordOptions";
 
 interface StepEditorProps {
   featureId: string;
@@ -37,14 +37,6 @@ interface StepEditorProps {
   steps: Step[];
 }
 
-// Labels come from the feature's language (see stepKeywordLabel)
-const KEYWORDS: { value: StepKeyword; color: string }[] = [
-  { value: "Given", color: "text-blue-600" },
-  { value: "When", color: "text-amber-600" },
-  { value: "Then", color: "text-green-600" },
-  { value: "And", color: "text-gray-500" },
-  { value: "But", color: "text-red-500" },
-];
 
 export function StepEditor({ featureId, scenarioId, steps }: StepEditorProps) {
   const addStep = useAppStore((s) => s.addStep);
@@ -132,17 +124,13 @@ export function StepEditor({ featureId, scenarioId, steps }: StepEditorProps) {
 
       {/* Add new step */}
       <div className="flex items-center gap-2 mt-2">
-        <select
+        <Select
           value={newKeyword}
-          onChange={(e) => setNewKeyword(e.target.value as StepKeyword)}
-          className="h-8 rounded-md border border-input bg-background px-2 text-xs font-bold text-primary focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          {KEYWORDS.map((kw) => (
-            <option key={kw.value} value={kw.value}>
-              {stepKeywordLabel(kw.value, language)}
-            </option>
-          ))}
-        </select>
+          onChange={setNewKeyword}
+          options={keywordOptions(language)}
+          aria-label="Keyword for the new step"
+          className="h-8 w-auto shrink-0 rounded-md px-2 text-xs font-bold"
+        />
         <input
           value={newText}
           onChange={(e) => setNewText(e.target.value)}
@@ -203,7 +191,6 @@ function SortableStepRow({
     setEditing(false);
   };
 
-  const kwColor = KEYWORDS.find((k) => k.value === step.keyword)?.color ?? "";
   const language = useAppStore((s) => s.getFeature(featureId)?.language);
 
   const hasTable = step.dataTable && step.dataTable.length > 0;
@@ -303,20 +290,17 @@ function SortableStepRow({
           <GripVertical className="w-3.5 h-3.5" />
         </button>
 
-        <select
+        <Select
+          variant="inline"
           value={step.keyword}
-          onChange={(e) => {
+          onChange={(keyword) => {
             pushUndo(featureId, "Change step keyword");
-            onUpdate({ keyword: e.target.value as StepKeyword });
+            onUpdate({ keyword });
           }}
-          className={`shrink-0 bg-transparent text-xs font-bold focus:outline-none cursor-pointer ${kwColor}`}
-        >
-          {KEYWORDS.map((kw) => (
-            <option key={kw.value} value={kw.value}>
-              {stepKeywordLabel(kw.value, language, step)}
-            </option>
-          ))}
-        </select>
+          options={keywordOptions(language, step)}
+          aria-label="Step keyword"
+          className="shrink-0 text-xs font-bold"
+        />
 
         {editing ? (
           <input
@@ -469,5 +453,3 @@ function SortableStepRow({
     </div>
   );
 }
-
-const _KEYWORDS = KEYWORDS; // re-export for SortableStepRow

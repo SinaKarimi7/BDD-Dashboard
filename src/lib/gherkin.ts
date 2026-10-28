@@ -77,7 +77,60 @@ function dialectFor(language?: string): Dialect {
 
 function headerKeyword(language: string | undefined, kind: HeaderKeyword) {
   if (!language || language === "en") return ENGLISH[kind];
-  return dialectFor(language)[kind][0];
+  const options = dialectFor(language)[kind];
+  // Scenario lists start with the word for "Example"; the next one is the
+  // plain "Scenario" (Scénario, Szenario, ...).
+  return kind === "scenario" && options.length > 1 ? options[1] : options[0];
+}
+
+export function isGherkinLanguage(code: string): boolean {
+  return code in dialects;
+}
+
+// Every language the parser knows, English first, e.g. "French (français)".
+export function gherkinLanguages(): { value: string; label: string }[] {
+  return Object.entries(dialects)
+    .map(([code, d]) => ({
+      value: code,
+      label: d.name === d.native ? d.name : `${d.name} (${d.native})`,
+    }))
+    .sort((a, b) =>
+      a.value === "en" ? -1 : b.value === "en" ? 1 : a.label.localeCompare(b.label),
+    );
+}
+
+// Switch a feature to another language. Keywords spelled out in the old
+// language are dropped so everything is written in the new one ("*" stays).
+export function changeLanguage(
+  feature: Feature,
+  language: string,
+): Partial<Feature> {
+  const keepStar = (step: Step): Step => {
+    if (!step.sourceKeyword || step.sourceKeyword.text === "* ") return step;
+    const rest = { ...step };
+    delete rest.sourceKeyword;
+    return rest;
+  };
+  const plainBackground = (bg: Background | null | undefined) =>
+    bg ? { ...bg, keyword: undefined, steps: bg.steps.map(keepStar) } : bg;
+  return {
+    language: language === "en" ? undefined : language,
+    keyword: undefined,
+    background: plainBackground(feature.background) ?? null,
+    scenarios: feature.scenarios.map((sc) => ({
+      ...sc,
+      sourceKeyword: undefined,
+      rule: sc.rule
+        ? {
+            ...sc.rule,
+            keyword: undefined,
+            background: plainBackground(sc.rule.background) ?? undefined,
+          }
+        : undefined,
+      steps: sc.steps.map(keepStar),
+      examples: sc.examples.map((ex) => ({ ...ex, keyword: undefined })),
+    })),
+  };
 }
 
 // Default step keyword with its trailing space, e.g. "Given " or "Soit ".

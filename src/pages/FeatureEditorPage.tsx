@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   Plus,
   Download,
+  Languages,
   LayoutGrid,
   FileText,
   Edit3,
@@ -64,7 +65,13 @@ import { GherkinPreview } from "@/components/features/GherkinPreview";
 import { BackgroundEditor } from "@/components/features/BackgroundEditor";
 import { ExamplesEditor } from "@/components/features/ExamplesEditor";
 import { exportSingleFeature } from "@/lib/export";
-import { scenarioKeywordLabel } from "@/lib/gherkin";
+import {
+  changeLanguage,
+  gherkinLanguages,
+  scenarioKeywordLabel,
+} from "@/lib/gherkin";
+
+const languageOptions = gherkinLanguages();
 import { PageTransition } from "@/components/animation";
 import { collapseTransition, easing, duration } from "@/lib/motion";
 import { useUndoRedo, pushUndo } from "@/hooks/useUndoRedo";
@@ -356,6 +363,21 @@ export function FeatureEditorPage() {
                 <Download className="w-4 h-4" />
                 Export
               </Button>
+              <Select
+                value={feature.language ?? "en"}
+                onChange={(language) => {
+                  pushUndo(featureId!, "Change language");
+                  updateFeature(featureId!, changeLanguage(feature, language));
+                }}
+                options={languageOptions}
+                searchable
+                icon={
+                  <Languages className="w-4 h-4 shrink-0 text-muted-foreground" />
+                }
+                aria-label="Gherkin language"
+                title="Gherkin language"
+                className="h-8 w-auto max-w-56 rounded-md px-2 text-xs"
+              />
             </div>
           </div>
 
@@ -631,9 +653,7 @@ export function FeatureEditorPage() {
             <Select
               label="Type"
               value={scenarioType}
-              onChange={(e) =>
-                setScenarioType(e.target.value as typeof scenarioType)
-              }
+              onChange={setScenarioType}
               options={[
                 { value: "scenario", label: "Scenario" },
                 { value: "scenario_outline", label: "Scenario Outline" },

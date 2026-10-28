@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  changeLanguage,
   featureToGherkin,
+  gherkinLanguages,
+  isGherkinLanguage,
   keywordPattern,
   parseGherkin,
   parseGherkinWithErrors,
@@ -274,6 +277,37 @@ describe("parseGherkin / featureToGherkin", () => {
     expect("Mais pas de SMS").toMatch(keywordPattern("fr"));
     expect("Rule: R").toMatch(keywordPattern());
     expect("Given a").not.toMatch(keywordPattern("fr"));
+  });
+
+  it("switches a feature to another language", () => {
+    const f = parse(
+      "# language: fr\nFonctionnalité: Panier\n  Exemple: Payer\n    Soit un panier\n    * un reçu\n    Et que rien\n",
+    );
+    const de = { ...f, ...changeLanguage(f, "de") };
+    expect(featureToGherkin(de)).toBe(
+      [
+        "# language: de",
+        "Funktionalität: Panier",
+        "  Szenario: Payer",
+        "    Angenommen un panier",
+        "    * un reçu",
+        "    Und rien",
+        "",
+      ].join("\n"),
+    );
+    const en = { ...f, ...changeLanguage(f, "en") };
+    expect(en.language).toBeUndefined();
+    expect(featureToGherkin(en)).toBe(
+      "Feature: Panier\n  Scenario: Payer\n    Given un panier\n    * un reçu\n    And rien\n",
+    );
+  });
+
+  it("lists every parser language, English first", () => {
+    const languages = gherkinLanguages();
+    expect(languages[0]).toEqual({ value: "en", label: "English" });
+    expect(languages.length).toBeGreaterThan(70);
+    expect(languages.map((l) => l.value)).toContain("zh-CN");
+    expect(isGherkinLanguage("zh")).toBe(false);
   });
 
   it("rejects text that isn't Gherkin", () => {
