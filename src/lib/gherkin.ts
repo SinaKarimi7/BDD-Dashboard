@@ -1,4 +1,12 @@
-import type { Feature, Step, StepKeyword } from "@/types";
+import type {
+  Background,
+  Examples,
+  Feature,
+  Rule,
+  Scenario,
+  Step,
+  StepKeyword,
+} from "@/types";
 import { generateId } from "@/lib/utils";
 
 const TAG_COLORS = [
@@ -23,19 +31,86 @@ const TAG_COLORS = [
  */
 function alignTable(rows: string[][], indent: string): string[] {
   if (rows.length === 0) return [];
-  const colCount = Math.max(...rows.map((r) => r.length));
+  const escaped = rows.map((row) => row.map(escapeCell));
+  const colCount = Math.max(...escaped.map((r) => r.length));
   const widths: number[] = Array.from({ length: colCount }, () => 0);
-  for (const row of rows) {
+  for (const row of escaped) {
     for (let i = 0; i < row.length; i++) {
       widths[i] = Math.max(widths[i], (row[i] ?? "").length);
     }
   }
-  return rows.map((row) => {
+  return escaped.map((row) => {
     const padded = Array.from({ length: colCount }, (_, i) =>
       (row[i] ?? "").padEnd(widths[i]),
     );
     return `${indent}| ${padded.join(" | ")} |`;
   });
+}
+
+// Gherkin table escapes: \| for a pipe, \n for a newline, \\ for a backslash.
+// A backslash is only escaped where it would otherwise start one of those.
+function escapeCell(cell: string): string {
+  return cell
+    .replace(/\\(?=[\\|n\n])/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/\n/g, "\\n");
+}
+
+function parseRow(trimmed: string): string[] {
+  const cells: string[] = [];
+  let cell = "";
+  for (let i = 1; i < trimmed.length; i++) {
+    const c = trimmed[i];
+    const next = trimmed[i + 1];
+    if (c === "\\" && (next === "|" || next === "\\")) {
+      cell += next;
+      i++;
+    } else if (c === "\\" && next === "n") {
+      cell += "\n";
+      i++;
+    } else if (c === "|") {
+      cells.push(cell.trim());
+      cell = "";
+    } else {
+      cell += c;
+    }
+  }
+  return cells;
+}
+
+function textLines(text: string, indent: string): string[] {
+  return text.split("\n").map((l) => (l ? `${indent}${l}` : ""));
+}
+
+function stepLines(step: Step, indent: string): string[] {
+  const lines: string[] = [];
+  step.comments?.forEach((c) => lines.push(`${indent}${c}`));
+  lines.push(`${indent}${step.keyword} ${step.text}`);
+  const inner = `${indent}  `;
+  if (step.dataTable) {
+    lines.push(...alignTable(step.dataTable, inner));
+  }
+  if (step.docString != null) {
+    const delim = step.docString
+      .split("\n")
+      .some((l) => l.trim().startsWith('"""'))
+      ? "```"
+      : '"""';
+    lines.push(`${inner}${delim}${step.docStringMediaType ?? ""}`);
+    lines.push(...textLines(step.docString, inner));
+    lines.push(`${inner}${delim}`);
+  }
+  return lines;
+}
+
+function tagLine(names: string[], indent: string): string[] {
+  return names.length > 0
+    ? [`${indent}${names.map((n) => `@${n}`).join(" ")}`]
+    : [];
+}
+
+function byPosition<T extends { position: number }>(items: T[]): T[] {
+  return [...items].sort((a, b) => a.position - b.position);
 }
 
 export function featureToGherkin(feature: Feature): string {
@@ -47,95 +122,107 @@ export function featureToGherkin(feature: Feature): string {
   }
 
   // Feature-level tags
-  if (feature.tags.length > 0) {
-    lines.push(feature.tags.map((t) => `@${t.name}`).join(" "));
-  }
+  lines.push(...tagLine(feature.tags.map((t) => t.name), ""));
 
   lines.push(`Feature: ${feature.name}`);
 
   if (feature.description) {
-    feature.description.split("\n").forEach((line) => {
-      lines.push(`  ${line}`);
-    });
+    lines.push(...textLines(feature.description, "  "));
     lines.push("");
   }
 
   // Background
   if (feature.background && feature.background.steps.length > 0) {
-    lines.push("  Background:");
-    feature.background.steps.forEach((step) => {
-      lines.push(`    ${step.keyword} ${step.text}`);
-      if (step.dataTable) {
-        lines.push(...alignTable(step.dataTable, "      "));
-      }
-      if (step.docString) {
-        lines.push('      """');
-        step.docString.split("\n").forEach((l) => lines.push(`      ${l}`));
-        lines.push('      """');
-      }
+    const bg = feature.background;
+    bg.headerComments?.forEach((c) => lines.push(`  ${c}`));
+    lines.push(`  Background:${bg.name ? ` ${bg.name}` : ""}`);
+    byPosition(bg.steps).forEach((step) => {
+      lines.push(...stepLines(step, "    "));
     });
     lines.push("");
   }
 
   // Scenarios
-  feature.scenarios
-    .sort((a, b) => a.position - b.position)
-    .forEach((scenario) => {
-      // Scenario comments
-      if (scenario.headerComments?.length) {
-        scenario.headerComments.forEach((c) => lines.push(`  ${c}`));
+  let ruleName: string | undefined;
+  byPosition(feature.scenarios).forEach((scenario) => {
+    if (scenario.rule?.name !== ruleName) {
+      ruleName = scenario.rule?.name;
+      if (scenario.rule) {
+        lines.push(...tagLine(scenario.rule.tags ?? [], "  "));
+        lines.push(`  Rule: ${scenario.rule.name}`);
+        if (scenario.rule.description) {
+          lines.push(...textLines(scenario.rule.description, "    "));
+        }
+        lines.push("");
       }
+    }
+    const indent = scenario.rule ? "    " : "  ";
+    const inner = `${indent}  `;
 
-      // Scenario tags
-      if (scenario.tags.length > 0) {
-        lines.push(`  ${scenario.tags.map((t) => `@${t.name}`).join(" ")}`);
-      }
+    // Scenario comments
+    scenario.headerComments?.forEach((c) => lines.push(`${indent}${c}`));
 
-      const keyword =
-        scenario.type === "scenario_outline" ? "Scenario Outline" : "Scenario";
-      lines.push(`  ${keyword}: ${scenario.name}`);
+    // Scenario tags
+    lines.push(...tagLine(scenario.tags.map((t) => t.name), indent));
 
-      // Steps
-      scenario.steps
-        .sort((a, b) => a.position - b.position)
-        .forEach((step) => {
-          lines.push(`    ${step.keyword} ${step.text}`);
-          if (step.dataTable) {
-            lines.push(...alignTable(step.dataTable, "      "));
-          }
-          if (step.docString) {
-            lines.push('      """');
-            step.docString.split("\n").forEach((l) => lines.push(`      ${l}`));
-            lines.push('      """');
-          }
-        });
+    const keyword =
+      scenario.type === "scenario_outline" ? "Scenario Outline" : "Scenario";
+    lines.push(`${indent}${keyword}: ${scenario.name}`);
 
-      // Examples
-      if (
-        scenario.type === "scenario_outline" &&
-        scenario.examples.length > 0
-      ) {
-        scenario.examples.forEach((ex) => {
-          lines.push("");
-          lines.push(`    Examples:${ex.name ? ` ${ex.name}` : ""}`);
-          if (ex.headers.length > 0) {
-            const allRows = [ex.headers, ...ex.rows];
-            lines.push(...alignTable(allRows, "      "));
-          }
-        });
-      }
+    if (scenario.description) {
+      lines.push(...textLines(scenario.description, inner));
+    }
 
-      lines.push("");
+    // Steps
+    byPosition(scenario.steps).forEach((step) => {
+      lines.push(...stepLines(step, inner));
     });
+
+    // Examples
+    if (
+      scenario.type === "scenario_outline" &&
+      scenario.examples.length > 0
+    ) {
+      scenario.examples.forEach((ex) => {
+        lines.push("");
+        ex.headerComments?.forEach((c) => lines.push(`${inner}${c}`));
+        lines.push(...tagLine(ex.tags ?? [], inner));
+        lines.push(`${inner}Examples:${ex.name ? ` ${ex.name}` : ""}`);
+        if (ex.headers.length > 0) {
+          const allRows = [ex.headers, ...ex.rows];
+          lines.push(...alignTable(allRows, `${inner}  `));
+        }
+      });
+    }
+
+    lines.push("");
+  });
+
+  feature.footerComments?.forEach((c) => lines.push(c));
 
   return lines.join("\n");
 }
 
 // ─── Parse Gherkin text into a Feature ────────────────────────
 
+const SCENARIO_RE = /^(Scenario Outline|Scenario Template|Scenario|Example):(.*)$/;
+const STEP_RE = /^(Given|When|Then|And|But|\*)\s+(.+)$/;
+const DOC_STRING_OPEN_RE = /^("""|```)\s*(\S*)$/;
+
+// Free text after a Feature:, Rule: or Scenario: line, up to the next keyword.
+interface Description {
+  kind: "feature" | "rule" | "scenario" | "ignore";
+  lines: string[];
+  save: (text: string) => void;
+}
+
+function leadingSpaces(line: string): number {
+  return line.length - line.trimStart().length;
+}
+
 export function parseGherkin(text: string, projectId: string): Feature | null {
   try {
-    const lines = text.split("\n");
+    const lines = text.split(/\r?\n/);
     const feature: Feature = {
       id: generateId(),
       projectId,
@@ -151,45 +238,92 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
       updatedAt: new Date().toISOString(),
     };
 
-    let currentScenario: (typeof feature.scenarios)[0] | null = null;
+    let currentScenario: Scenario | null = null;
+    let currentRule: Rule | null = null;
     let inBackground = false;
-    let inDocString = false;
-    let docStringBuffer: string[] = [];
+    let inExamples = false;
+    let docString: {
+      delim: string;
+      indent: number;
+      mediaType: string;
+      lines: string[];
+    } | null = null;
     let pendingTags: string[] = [];
     let pendingComments: string[] = [];
-    let descriptionLines: string[] = [];
-    let inFeatureDescription = false;
-    let inExamples = false;
+    let description: Description | null = null;
 
-    // Keywords that end the feature description section
-    const SECTION_KEYWORDS =
-      /^(Scenario Outline:|Scenario:|Background:|Examples:|Rule:)/;
+    const toTags = (names: string[]) =>
+      names.map((name, i) => ({
+        id: generateId(),
+        projectId,
+        name,
+        color: TAG_COLORS[i % TAG_COLORS.length],
+      }));
+
+    const startDescription = (
+      kind: Description["kind"],
+      save: (text: string) => void,
+    ) => {
+      description = { kind, lines: [], save };
+    };
+
+    const finishDescription = () => {
+      if (!description) return;
+      const text = description.lines
+        .join("\n")
+        .replace(/\n+$/, "")
+        .replace(/^\n+/, "");
+      if (text) description.save(text);
+      description = null;
+    };
+
+    const takeComments = () => {
+      const comments = pendingComments;
+      pendingComments = [];
+      return comments;
+    };
+
+    const lastStep = (): Step | null => {
+      const steps =
+        inBackground && feature.background
+          ? feature.background.steps
+          : currentScenario?.steps;
+      return steps && steps.length > 0 ? steps[steps.length - 1] : null;
+    };
 
     for (const rawLine of lines) {
       const line = rawLine.trimEnd();
       const trimmed = line.trim();
 
-      // ── Doc string boundaries ──
-      if (trimmed === '"""' || trimmed === "```") {
-        if (inDocString) {
-          const target = currentScenario
-            ? currentScenario.steps[currentScenario.steps.length - 1]
-            : inBackground && feature.background
-              ? feature.background.steps[feature.background.steps.length - 1]
-              : null;
+      // ── Doc string content and closing delimiter ──
+      if (docString) {
+        if (trimmed === docString.delim) {
+          const target = lastStep();
           if (target) {
-            target.docString = docStringBuffer.join("\n");
+            target.docString = docString.lines.join("\n");
+            if (docString.mediaType) {
+              target.docStringMediaType = docString.mediaType;
+            }
           }
-          docStringBuffer = [];
-          inDocString = false;
+          docString = null;
         } else {
-          inDocString = true;
+          // Keep indentation relative to the opening delimiter
+          const strip = Math.min(docString.indent, leadingSpaces(line));
+          docString.lines.push(line.slice(strip));
         }
         continue;
       }
 
-      if (inDocString) {
-        docStringBuffer.push(trimmed);
+      // ── Doc string opening delimiter (optionally with a media type) ──
+      const docOpen = trimmed.match(DOC_STRING_OPEN_RE);
+      if (docOpen) {
+        finishDescription();
+        docString = {
+          delim: docOpen[1],
+          indent: leadingSpaces(line),
+          mediaType: docOpen[2],
+          lines: [],
+        };
         continue;
       }
 
@@ -201,23 +335,14 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
 
       // ── Empty lines ──
       if (!trimmed) {
-        // Empty lines within the description are preserved
-        if (inFeatureDescription) {
-          descriptionLines.push("");
-        }
+        // Empty lines within a description are preserved
+        if (description) (description as Description).lines.push("");
         continue;
       }
 
       // ── Tags ──
       if (trimmed.startsWith("@")) {
-        // If we were collecting feature description, finalize it
-        if (inFeatureDescription) {
-          feature.description = descriptionLines
-            .join("\n")
-            .replace(/\n+$/, "")
-            .replace(/^\n+/, "");
-          inFeatureDescription = false;
-        }
+        finishDescription();
         pendingTags.push(
           ...trimmed
             .split(/\s+/)
@@ -230,89 +355,76 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
       // ── Feature ──
       if (trimmed.startsWith("Feature:")) {
         feature.name = trimmed.replace("Feature:", "").trim();
-        feature.tags = pendingTags.map((name, i) => ({
-          id: generateId(),
-          projectId,
-          name,
-          color: TAG_COLORS[i % TAG_COLORS.length],
-        }));
-        feature.headerComments = pendingComments;
+        feature.tags = toTags(pendingTags);
+        feature.headerComments = takeComments();
         pendingTags = [];
-        pendingComments = [];
-        inFeatureDescription = true;
-        descriptionLines = [];
+        startDescription("feature", (d) => (feature.description = d));
         continue;
       }
 
-      // ── Collect description lines after Feature: ──
-      if (inFeatureDescription) {
-        // If we hit a section keyword, finalize description and fall through
-        if (SECTION_KEYWORDS.test(trimmed) || trimmed.startsWith("@")) {
-          feature.description = descriptionLines
-            .join("\n")
-            .replace(/\n+$/, "")
-            .replace(/^\n+/, "");
-          inFeatureDescription = false;
-          // Fall through to handle this line as a section keyword
-        } else {
-          descriptionLines.push(trimmed);
-          continue;
-        }
+      // ── Rule ──
+      if (trimmed.startsWith("Rule:")) {
+        finishDescription();
+        const rule: Rule = { name: trimmed.replace("Rule:", "").trim() };
+        if (pendingTags.length > 0) rule.tags = pendingTags;
+        pendingTags = [];
+        currentRule = rule;
+        currentScenario = null;
+        inBackground = false;
+        inExamples = false;
+        startDescription("rule", (d) => (rule.description = d));
+        continue;
       }
 
       // ── Background ──
       if (trimmed.startsWith("Background:")) {
+        finishDescription();
         inBackground = true;
         inExamples = false;
         currentScenario = null;
-        feature.background = {
+        const background: Background = {
           id: generateId(),
           featureId: feature.id,
           steps: [],
         };
+        const name = trimmed.replace("Background:", "").trim();
+        if (name) background.name = name;
+        const comments = takeComments();
+        if (comments.length > 0) background.headerComments = comments;
+        feature.background = background;
         pendingTags = [];
+        startDescription("ignore", () => {});
         continue;
       }
 
-      // ── Scenario / Scenario Outline ──
-      if (
-        trimmed.startsWith("Scenario Outline:") ||
-        trimmed.startsWith("Scenario Template:") ||
-        trimmed.startsWith("Scenario:")
-      ) {
+      // ── Scenario / Scenario Outline / Example ──
+      const scenarioMatch = trimmed.match(SCENARIO_RE);
+      if (scenarioMatch) {
+        finishDescription();
         inBackground = false;
         inExamples = false;
         const isOutline =
-          trimmed.startsWith("Scenario Outline:") ||
-          trimmed.startsWith("Scenario Template:");
-        const name = trimmed
-          .replace(
-            isOutline ? /^Scenario (Outline|Template):/ : /^Scenario:/,
-            "",
-          )
-          .trim();
-        currentScenario = {
+          scenarioMatch[1] === "Scenario Outline" ||
+          scenarioMatch[1] === "Scenario Template";
+        const scenario: Scenario = {
           id: generateId(),
           featureId: feature.id,
-          name,
+          name: scenarioMatch[2].trim(),
           type: isOutline ? "scenario_outline" : "scenario",
           status: "backlog",
           position: feature.scenarios.length,
-          tags: pendingTags.map((tagName, i) => ({
-            id: generateId(),
-            projectId,
-            name: tagName,
-            color: TAG_COLORS[i % TAG_COLORS.length],
-          })),
+          tags: toTags(pendingTags),
           steps: [],
           examples: [],
-          headerComments: pendingComments,
+          headerComments: takeComments(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
-        feature.scenarios.push(currentScenario);
+        if (currentRule) scenario.rule = currentRule;
+        currentScenario = scenario;
+        feature.scenarios.push(scenario);
         pendingTags = [];
-        pendingComments = [];
+        startDescription("scenario", (d) => (scenario.description = d));
         continue;
       }
 
@@ -321,25 +433,35 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
         (trimmed.startsWith("Examples:") || trimmed.startsWith("Scenarios:")) &&
         currentScenario
       ) {
+        finishDescription();
         inExamples = true;
-        const name = trimmed.replace(/^(Examples|Scenarios):/, "").trim();
-        currentScenario.examples.push({
+        const examples: Examples = {
           id: generateId(),
           scenarioId: currentScenario.id,
-          name,
+          name: trimmed.replace(/^(Examples|Scenarios):/, "").trim(),
           headers: [],
           rows: [],
           position: currentScenario.examples.length,
-        });
+        };
+        if (pendingTags.length > 0) examples.tags = pendingTags;
+        const comments = takeComments();
+        if (comments.length > 0) examples.headerComments = comments;
+        pendingTags = [];
+        currentScenario.examples.push(examples);
+        continue;
+      }
+
+      // Inside a Feature or Rule description, steps and tables are just text
+      const d = description as Description | null;
+      if (d && (d.kind === "feature" || d.kind === "rule")) {
+        d.lines.push(trimmed);
         continue;
       }
 
       // ── Data table rows (| ... |) ──
       if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
-        const cells = trimmed
-          .slice(1, -1)
-          .split("|")
-          .map((c) => c.trim());
+        finishDescription();
+        const cells = parseRow(trimmed);
 
         // Check if we're in examples
         if (
@@ -358,21 +480,18 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
         }
 
         // Otherwise it's a data table for the last step
-        const stepsTarget =
-          inBackground && feature.background
-            ? feature.background.steps
-            : currentScenario?.steps;
-        if (stepsTarget && stepsTarget.length > 0) {
-          const lastStep = stepsTarget[stepsTarget.length - 1];
-          if (!lastStep.dataTable) lastStep.dataTable = [];
-          lastStep.dataTable.push(cells);
+        const target = lastStep();
+        if (target) {
+          if (!target.dataTable) target.dataTable = [];
+          target.dataTable.push(cells);
         }
         continue;
       }
 
       // ── Steps (Given/When/Then/And/But/*) ──
-      const stepMatch = trimmed.match(/^(Given|When|Then|And|But|\*)\s+(.+)$/);
+      const stepMatch = trimmed.match(STEP_RE);
       if (stepMatch) {
+        finishDescription();
         inExamples = false;
         const keyword =
           stepMatch[1] === "*" ? "And" : (stepMatch[1] as StepKeyword);
@@ -385,6 +504,8 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
           docString: null,
           position: 0,
         };
+        const comments = takeComments();
+        if (comments.length > 0) step.comments = comments;
 
         if (inBackground && feature.background) {
           step.position = feature.background.steps.length;
@@ -395,15 +516,13 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
         }
         continue;
       }
+
+      // ── Free text (description lines) ──
+      if (d) d.lines.push(trimmed);
     }
 
-    // Finalize description if we're still collecting it
-    if (inFeatureDescription && descriptionLines.length > 0) {
-      feature.description = descriptionLines
-        .join("\n")
-        .replace(/\n+$/, "")
-        .replace(/^\n+/, "");
-    }
+    finishDescription();
+    if (pendingComments.length > 0) feature.footerComments = pendingComments;
 
     return feature;
   } catch {
