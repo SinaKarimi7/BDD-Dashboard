@@ -40,17 +40,9 @@ export function FileDropZone({ projectId, onImport }: FileDropZoneProps) {
         })),
       );
 
-      const parsed = parseFeatureFiles(fileContents, projectId);
-      const errs: string[] = [];
-
-      fileArray.forEach((f, i) => {
-        if (!parsed[i]) {
-          errs.push(`Failed to parse: ${f.name}`);
-        }
-      });
-
-      setParsedFeatures(parsed);
-      setErrors(errs);
+      const { features, errors } = parseFeatureFiles(fileContents, projectId);
+      setParsedFeatures(features);
+      setErrors(errors);
     },
     [projectId],
   );

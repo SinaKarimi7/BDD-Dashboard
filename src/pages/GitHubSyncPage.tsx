@@ -68,8 +68,11 @@ import {
   isOAuthConfigured,
   extractOAuthToken,
 } from "@/lib/github";
-import { parseGherkin } from "@/lib/gherkin";
-import { featureToGherkin } from "@/lib/gherkin";
+import {
+  featureToGherkin,
+  parseGherkin,
+  parseGherkinWithErrors,
+} from "@/lib/gherkin";
 
 // ─── Tab types ──────────────────────────────────────────────
 
@@ -1094,6 +1097,8 @@ function mergeRemote(
     scenarios,
     headerComments: remote.headerComments,
     footerComments: remote.footerComments,
+    language: remote.language,
+    keyword: remote.keyword,
   };
 }
 
@@ -1197,6 +1202,7 @@ function PullTab({
       );
 
       const parsed: any[] = [];
+      const parseErrors: string[] = [];
       for (const file of filesToImport) {
         const { content, sha } = await getFileContent(
           connection.token,
@@ -1206,7 +1212,7 @@ function PullTab({
           connection.branch,
         );
 
-        const feature = parseGherkin(content, projectId);
+        const { feature, errors } = parseGherkinWithErrors(content, projectId);
         if (feature) {
           if (!feature.name) {
             feature.name = file.name.replace(".feature", "");
@@ -1215,13 +1221,16 @@ function PullTab({
             ? file.path.substring(0, file.path.lastIndexOf("/"))
             : "";
           parsed.push({ feature, sha, filePath: file.path, content });
+        } else {
+          parseErrors.push(`${file.path} ${errors[0]}`);
         }
       }
 
-      if (parsed.length === 0) {
-        setError("No valid feature files found in selected files.");
-        return;
+      // Files that don't parse are skipped and listed
+      if (parseErrors.length > 0) {
+        setError(`Skipped files that don't parse: ${parseErrors.join("; ")}`);
       }
+      if (parsed.length === 0) return;
 
       // Pull never overwrites edits that haven't been pushed. A feature counts
       // as clean only when it still matches the content of its last sync.
