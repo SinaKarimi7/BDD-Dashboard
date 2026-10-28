@@ -29,6 +29,7 @@ import { useAppStore } from "@/store";
 import type { Step, StepKeyword } from "@/types";
 import { Button } from "@/components/ui";
 import { pushUndo } from "@/hooks/useUndoRedo";
+import { stepKeywordLabel } from "@/lib/gherkin";
 
 interface StepEditorProps {
   featureId: string;
@@ -36,12 +37,13 @@ interface StepEditorProps {
   steps: Step[];
 }
 
-const KEYWORDS: { value: StepKeyword; label: string; color: string }[] = [
-  { value: "Given", label: "Given", color: "text-blue-600" },
-  { value: "When", label: "When", color: "text-amber-600" },
-  { value: "Then", label: "Then", color: "text-green-600" },
-  { value: "And", label: "And", color: "text-gray-500" },
-  { value: "But", label: "But", color: "text-red-500" },
+// Labels come from the feature's language (see stepKeywordLabel)
+const KEYWORDS: { value: StepKeyword; color: string }[] = [
+  { value: "Given", color: "text-blue-600" },
+  { value: "When", color: "text-amber-600" },
+  { value: "Then", color: "text-green-600" },
+  { value: "And", color: "text-gray-500" },
+  { value: "But", color: "text-red-500" },
 ];
 
 export function StepEditor({ featureId, scenarioId, steps }: StepEditorProps) {
@@ -49,6 +51,7 @@ export function StepEditor({ featureId, scenarioId, steps }: StepEditorProps) {
   const updateStep = useAppStore((s) => s.updateStep);
   const deleteStep = useAppStore((s) => s.deleteStep);
   const reorderSteps = useAppStore((s) => s.reorderSteps);
+  const language = useAppStore((s) => s.getFeature(featureId)?.language);
 
   const [newKeyword, setNewKeyword] = useState<StepKeyword>("Given");
   const [newText, setNewText] = useState("");
@@ -136,7 +139,7 @@ export function StepEditor({ featureId, scenarioId, steps }: StepEditorProps) {
         >
           {KEYWORDS.map((kw) => (
             <option key={kw.value} value={kw.value}>
-              {kw.label}
+              {stepKeywordLabel(kw.value, language)}
             </option>
           ))}
         </select>
@@ -201,6 +204,7 @@ function SortableStepRow({
   };
 
   const kwColor = KEYWORDS.find((k) => k.value === step.keyword)?.color ?? "";
+  const language = useAppStore((s) => s.getFeature(featureId)?.language);
 
   const hasTable = step.dataTable && step.dataTable.length > 0;
 
@@ -309,7 +313,7 @@ function SortableStepRow({
         >
           {KEYWORDS.map((kw) => (
             <option key={kw.value} value={kw.value}>
-              {kw.label}
+              {stepKeywordLabel(kw.value, language, step)}
             </option>
           ))}
         </select>

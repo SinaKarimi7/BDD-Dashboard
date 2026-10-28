@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   featureToGherkin,
+  keywordPattern,
   parseGherkin,
   parseGherkinWithErrors,
+  scenarioKeywordLabel,
+  stepKeywordLabel,
 } from "@/lib/gherkin";
 import type { Feature } from "@/types";
 
@@ -254,6 +257,23 @@ describe("parseGherkin / featureToGherkin", () => {
     );
     expect(result.feature).toBeNull();
     expect(result.errors[0]).toMatch(/^\(4:3\)/);
+  });
+
+  it("labels keywords in the feature's language", () => {
+    const f = parse(
+      "# language: fr\nFonctionnalité: F\n  Scénario: S\n    * a\n    Soit b\n",
+    );
+    const [star, given] = f.scenarios[0].steps;
+    expect(stepKeywordLabel("Given", "fr")).toBe("Soit");
+    expect(stepKeywordLabel("Then", "fr")).toBe("Alors");
+    expect(stepKeywordLabel("And", "fr", star)).toBe("*");
+    expect(stepKeywordLabel("Given", "fr", given)).toBe("Soit");
+    expect(stepKeywordLabel("Given")).toBe("Given");
+    expect(scenarioKeywordLabel(f.scenarios[0], "fr")).toBe("Scénario");
+    expect("Scénario: S").toMatch(keywordPattern("fr"));
+    expect("Mais pas de SMS").toMatch(keywordPattern("fr"));
+    expect("Rule: R").toMatch(keywordPattern());
+    expect("Given a").not.toMatch(keywordPattern("fr"));
   });
 
   it("rejects text that isn't Gherkin", () => {

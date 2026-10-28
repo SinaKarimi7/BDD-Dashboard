@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Feature } from "@/types";
-import { featureToGherkin } from "@/lib/gherkin";
+import { featureToGherkin, keywordPattern } from "@/lib/gherkin";
 
 interface GherkinPreviewProps {
   feature: Feature;
@@ -8,6 +8,10 @@ interface GherkinPreviewProps {
 
 export function GherkinPreview({ feature }: GherkinPreviewProps) {
   const gherkin = useMemo(() => featureToGherkin(feature), [feature]);
+  const keywords = useMemo(
+    () => keywordPattern(feature.language),
+    [feature.language],
+  );
 
   const highlighted = useMemo(() => {
     return gherkin.split("\n").map((line, i) => {
@@ -29,9 +33,7 @@ export function GherkinPreview({ feature }: GherkinPreviewProps) {
         );
       }
 
-      const keywordMatch = trimmed.match(
-        /^(Feature:|Scenario Outline:|Scenario:|Background:|Examples:|Given |When |Then |And |But )/,
-      );
+      const keywordMatch = trimmed.match(keywords);
       if (keywordMatch) {
         const kw = keywordMatch[1];
         const rest = line.slice(line.indexOf(kw) + kw.length);
@@ -53,7 +55,7 @@ export function GherkinPreview({ feature }: GherkinPreviewProps) {
         );
       }
 
-      if (trimmed === '"""') {
+      if (/^("""|```)/.test(trimmed)) {
         return (
           <div key={i} className="text-amber-500">
             {line}
@@ -63,7 +65,7 @@ export function GherkinPreview({ feature }: GherkinPreviewProps) {
 
       return <div key={i}>{line || "\u00A0"}</div>;
     });
-  }, [gherkin]);
+  }, [gherkin, keywords]);
 
   return (
     <div className="rounded-xl border border-border bg-muted/30 overflow-hidden">

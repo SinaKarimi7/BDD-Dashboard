@@ -26,22 +26,24 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/store";
-import type { Background, StepKeyword } from "@/types";
+import type { Background, Step, StepKeyword } from "@/types";
 import { Button } from "@/components/ui";
 import { pushUndo } from "@/hooks/useUndoRedo";
 import { collapseTransition } from "@/lib/motion";
+import { stepKeywordLabel } from "@/lib/gherkin";
 
 interface BackgroundEditorProps {
   featureId: string;
   background: Background | null;
 }
 
-const KEYWORDS: { value: StepKeyword; label: string; color: string }[] = [
-  { value: "Given", label: "Given", color: "text-blue-600" },
-  { value: "When", label: "When", color: "text-amber-600" },
-  { value: "Then", label: "Then", color: "text-green-600" },
-  { value: "And", label: "And", color: "text-gray-500" },
-  { value: "But", label: "But", color: "text-red-500" },
+// Labels come from the feature's language (see stepKeywordLabel)
+const KEYWORDS: { value: StepKeyword; color: string }[] = [
+  { value: "Given", color: "text-blue-600" },
+  { value: "When", color: "text-amber-600" },
+  { value: "Then", color: "text-green-600" },
+  { value: "And", color: "text-gray-500" },
+  { value: "But", color: "text-red-500" },
 ];
 
 export function BackgroundEditor({
@@ -51,6 +53,7 @@ export function BackgroundEditor({
   const setBackground = useAppStore((s) => s.setBackground);
   const removeBackground = useAppStore((s) => s.removeBackground);
   const updateFeature = useAppStore((s) => s.updateFeature);
+  const language = useAppStore((s) => s.getFeature(featureId)?.language);
 
   const [expanded, setExpanded] = useState(true);
   const [newKeyword, setNewKeyword] = useState<StepKeyword>("Given");
@@ -244,6 +247,7 @@ export function BackgroundEditor({
                     <SortableBgStep
                       key={step.id}
                       step={step}
+                      language={language}
                       onUpdate={handleUpdateStep}
                       onTextFocus={handleTextFocus}
                       onDelete={handleDeleteStep}
@@ -261,7 +265,7 @@ export function BackgroundEditor({
                 >
                   {KEYWORDS.map((k) => (
                     <option key={k.value} value={k.value}>
-                      {k.label}
+                      {stepKeywordLabel(k.value, language)}
                     </option>
                   ))}
                 </select>
@@ -292,7 +296,8 @@ export function BackgroundEditor({
 // ─── Sortable Background Step ───────────────────────────────
 
 interface SortableBgStepProps {
-  step: { id: string; keyword: StepKeyword; text: string };
+  step: Step;
+  language?: string;
   onUpdate: (
     id: string,
     updates: { keyword?: StepKeyword; text?: string },
@@ -303,6 +308,7 @@ interface SortableBgStepProps {
 
 function SortableBgStep({
   step,
+  language,
   onUpdate,
   onTextFocus,
   onDelete,
@@ -349,7 +355,7 @@ function SortableBgStep({
       >
         {KEYWORDS.map((k) => (
           <option key={k.value} value={k.value}>
-            {k.label}
+            {stepKeywordLabel(k.value, language, step)}
           </option>
         ))}
       </select>

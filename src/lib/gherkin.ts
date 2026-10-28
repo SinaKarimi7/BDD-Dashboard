@@ -81,10 +81,13 @@ function headerKeyword(language: string | undefined, kind: HeaderKeyword) {
 }
 
 // Default step keyword with its trailing space, e.g. "Given " or "Soit ".
+// Prefers a single word ("Et " over "Et que ") when the language has one.
 function stepKeyword(language: string | undefined, keyword: StepKeyword) {
   if (!language || language === "en") return `${keyword} `;
-  const options = dialectFor(language)[STEP_DIALECT_KEY[keyword]];
-  return options.find((k) => k !== "* ") ?? `${keyword} `;
+  const options = dialectFor(language)[STEP_DIALECT_KEY[keyword]].filter(
+    (k) => k !== "* ",
+  );
+  return options.find((k) => /^\S+ $/.test(k)) ?? options[0] ?? `${keyword} `;
 }
 
 function scenarioKeyword(language: string | undefined, scenario: Scenario) {
@@ -95,6 +98,49 @@ function scenarioKeyword(language: string | undefined, scenario: Scenario) {
     language,
     scenario.type === "scenario_outline" ? "scenarioOutline" : "scenario",
   );
+}
+
+export const STEP_KEYWORDS: StepKeyword[] = ["Given", "When", "Then", "And", "But"];
+
+// How a step keyword reads in the feature's language, e.g. "Soit" for Given.
+// A step keeps the spelling from its file (like "*") for its own keyword.
+export function stepKeywordLabel(
+  keyword: StepKeyword,
+  language?: string,
+  step?: Step,
+): string {
+  const text =
+    step?.sourceKeyword?.keyword === keyword
+      ? step.sourceKeyword.text
+      : stepKeyword(language, keyword);
+  return text.trim();
+}
+
+export function scenarioKeywordLabel(
+  scenario: Scenario,
+  language?: string,
+): string {
+  return scenarioKeyword(language, scenario);
+}
+
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Matches a line's leading keyword in the language, e.g. "Scénario:" or "Soit ".
+export function keywordPattern(language?: string): RegExp {
+  const d = dialectFor(language);
+  const headers = [
+    ...d.feature,
+    ...d.background,
+    ...d.rule,
+    ...d.scenario,
+    ...d.scenarioOutline,
+    ...d.examples,
+  ].map((k) => `${k}:`);
+  const steps = [...d.given, ...d.when, ...d.then, ...d.and, ...d.but];
+  const all = [...new Set([...headers, ...steps])].sort(
+    (a, b) => b.length - a.length,
+  );
+  return new RegExp(`^(${all.map(escapeRegExp).join("|")})`);
 }
 
 // ─── Export a single Feature to Gherkin text ──────────────────

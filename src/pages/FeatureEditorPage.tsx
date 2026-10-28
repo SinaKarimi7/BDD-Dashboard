@@ -64,6 +64,7 @@ import { GherkinPreview } from "@/components/features/GherkinPreview";
 import { BackgroundEditor } from "@/components/features/BackgroundEditor";
 import { ExamplesEditor } from "@/components/features/ExamplesEditor";
 import { exportSingleFeature } from "@/lib/export";
+import { scenarioKeywordLabel } from "@/lib/gherkin";
 import { PageTransition } from "@/components/animation";
 import { collapseTransition, easing, duration } from "@/lib/motion";
 import { useUndoRedo, pushUndo } from "@/hooks/useUndoRedo";
@@ -719,6 +720,7 @@ function SortableScenarioCard({
     isDragging,
   } = useSortable({ id: scenario.id });
   const updateScenario = useAppStore((s) => s.updateScenario);
+  const language = useAppStore((s) => s.getFeature(featureId)?.language);
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(scenario.name);
 
@@ -734,8 +736,7 @@ function SortableScenarioCard({
     setEditingName(false);
   };
 
-  const keyword =
-    scenario.type === "scenario_outline" ? "Scenario Outline" : "Scenario";
+  const keyword = scenarioKeywordLabel(scenario, language);
 
   return (
     <div
