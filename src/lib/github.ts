@@ -61,6 +61,20 @@ export function extractOAuthToken(): string | null {
   return null;
 }
 
+// GitHub sends file content as base64 of the raw UTF-8 bytes.
+function decodeBase64Utf8(b64: string): string {
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function encodeBase64Utf8(text: string): string {
+  let binary = "";
+  for (const byte of new TextEncoder().encode(text)) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
 function headers(token: string) {
   return {
     Authorization: `Bearer ${token}`,
@@ -202,7 +216,7 @@ export async function getFileContent(
     `/repos/${owner}/${repo}/contents/${encodedPath}?ref=${branch}`,
   );
 
-  const content = atob(raw.content.replace(/\n/g, ""));
+  const content = decodeBase64Utf8(raw.content.replace(/\n/g, ""));
   return { content, sha: raw.sha };
 }
 
@@ -221,7 +235,7 @@ export async function createOrUpdateFile(
   const encodedPath = encodeURIComponent(path).replace(/%2F/g, "/");
   const body: Record<string, string> = {
     message,
-    content: btoa(unescape(encodeURIComponent(content))),
+    content: encodeBase64Utf8(content),
   };
   if (sha) body.sha = sha;
   if (branch) body.branch = branch;
