@@ -37,6 +37,8 @@ import type {
   GitHubFileMapping,
   GitHubConnection,
   Feature,
+  Scenario,
+  Tag,
 } from "@/types";
 import {
   Button,
@@ -88,6 +90,7 @@ export function GitHubSyncPage() {
   const setGitHubConnection = useAppStore((s) => s.setGitHubConnection);
   const importFeatures = useAppStore((s) => s.importFeatures);
   const updateFeature = useAppStore((s) => s.updateFeature);
+  const ensureTags = useAppStore((s) => s.ensureTags);
   const addGitHubFileMapping = useAppStore((s) => s.addGitHubFileMapping);
   const updateGitHubFileMapping = useAppStore((s) => s.updateGitHubFileMapping);
   const deleteFeature = useAppStore((s) => s.deleteFeature);
@@ -174,6 +177,7 @@ export function GitHubSyncPage() {
             mappings={githubFileMappings}
             onImport={importFeatures}
             onUpdateFeature={updateFeature}
+            onEnsureTags={ensureTags}
             onMapFile={addGitHubFileMapping}
             onDeleteFeature={deleteFeature}
             onSwitchTab={() => setActiveTab("connection")}
@@ -1045,6 +1049,52 @@ function ConnectionTab({
   );
 }
 
+// ─── Merge remote content into a local feature ──────────────
+
+// Scenarios are matched by name so their id, board status and creation date
+// survive a pull or discard. Tags are resolved to the project's tags.
+function mergeRemote(
+  local: Feature,
+  remote: Feature,
+  ensureTags: (projectId: string, names: string[]) => Tag[],
+): Partial<Feature> {
+  const byName = new Map<string, Scenario[]>();
+  for (const sc of local.scenarios) {
+    byName.set(sc.name, [...(byName.get(sc.name) ?? []), sc]);
+  }
+  const scenarios = remote.scenarios.map((sc) => {
+    const match = byName.get(sc.name)?.shift();
+    const id = match?.id ?? sc.id;
+    return {
+      ...sc,
+      id,
+      featureId: local.id,
+      status: match?.status ?? sc.status,
+      createdAt: match?.createdAt ?? sc.createdAt,
+      tags: ensureTags(
+        local.projectId,
+        sc.tags.map((t) => t.name),
+      ),
+      steps: sc.steps.map((st) => ({ ...st, scenarioId: id })),
+      examples: sc.examples.map((ex) => ({ ...ex, scenarioId: id })),
+    };
+  });
+  return {
+    name: remote.name,
+    description: remote.description,
+    tags: ensureTags(
+      local.projectId,
+      remote.tags.map((t) => t.name),
+    ),
+    background: remote.background
+      ? { ...remote.background, featureId: local.id }
+      : null,
+    scenarios,
+    headerComments: remote.headerComments,
+    footerComments: remote.footerComments,
+  };
+}
+
 // ─── Pull Tab ───────────────────────────────────────────────
 
 function PullTab({
@@ -1054,6 +1104,7 @@ function PullTab({
   mappings,
   onImport,
   onUpdateFeature,
+  onEnsureTags,
   onMapFile,
   onDeleteFeature,
   onSwitchTab,
@@ -1064,6 +1115,7 @@ function PullTab({
   mappings: GitHubFileMapping[];
   onImport: (projectId: string, features: Feature[]) => Feature[];
   onUpdateFeature: (id: string, updates: Partial<Feature>) => void;
+  onEnsureTags: (projectId: string, names: string[]) => Tag[];
   onMapFile: (mapping: GitHubFileMapping) => void;
   onDeleteFeature: (id: string) => void;
   onSwitchTab: () => void;
@@ -1169,96 +1221,67 @@ function PullTab({
         return;
       }
 
-      // Separate files that already have mappings (re-imports) from new imports
+      // Pull never overwrites edits that haven't been pushed. A feature counts
+      // as clean only when it still matches the content of its last sync.
       const newParsed: typeof parsed = [];
-      const reImported: typeof parsed = [];
+      const claimed = new Set<string>();
       let updatedCount = 0;
+      let unchangedCount = 0;
+      const keptLocal: string[] = [];
 
       for (const p of parsed) {
-        const existingMapping = mappings.find((m) => m.filePath === p.filePath);
-        // Also check by feature name for features imported via file drop
-        const existingByName = !existingMapping
-          ? features.find(
-              (f) => f.name.toLowerCase() === p.feature.name.toLowerCase(),
-            )
-          : null;
-
-        if (existingMapping) {
-          // Re-import: update existing feature
-          const existingFeature = features.find(
-            (f) => f.id === existingMapping.featureId,
+        const mapping = mappings.find((m) => m.filePath === p.filePath);
+        const mapped = mapping
+          ? features.find((f) => f.id === mapping.featureId)
+          : undefined;
+        // Features imported via file drop are matched by name, once each
+        const target =
+          mapped ??
+          features.find(
+            (f) =>
+              !claimed.has(f.id) &&
+              !mappings.some((m) => m.featureId === f.id) &&
+              f.name.toLowerCase() === p.feature.name.toLowerCase(),
           );
-          if (existingFeature) {
-            onUpdateFeature(existingFeature.id, {
-              name: p.feature.name,
-              description: p.feature.description,
-              folderPath: p.feature.folderPath,
-              scenarios: p.feature.scenarios.map((s: any, i: number) => ({
-                ...s,
-                id: s.id || `${existingFeature.id}-s${i}`,
-                featureId: existingFeature.id,
-              })),
-              background: p.feature.background,
-              tags: p.feature.tags,
-              headerComments: p.feature.headerComments,
-            });
-            // Update the mapping
-            const roundTripped = featureToGherkin({
-              ...existingFeature,
-              name: p.feature.name,
-              description: p.feature.description,
-              scenarios: p.feature.scenarios,
-              background: p.feature.background,
-              tags: p.feature.tags,
-              headerComments: p.feature.headerComments,
-            });
-            onMapFile({
-              featureId: existingFeature.id,
-              filePath: p.filePath,
-              sha: p.sha,
-              lastSyncedContent: roundTripped,
-              lastSyncedAt: new Date().toISOString(),
-            });
-            updatedCount++;
-            reImported.push(p);
-          } else {
-            newParsed.push(p);
-          }
-        } else if (existingByName) {
-          // Match by name: update existing feature and create mapping
-          onUpdateFeature(existingByName.id, {
-            name: p.feature.name,
-            description: p.feature.description,
+
+        if (!target) {
+          newParsed.push(p);
+          continue;
+        }
+        claimed.add(target.id);
+
+        const remoteContent = featureToGherkin(p.feature);
+        const localContent = featureToGherkin(target);
+        const clean = mapping
+          ? localContent === mapping.lastSyncedContent
+          : localContent === remoteContent;
+
+        if (clean) {
+          const merged: Partial<Feature> = {
+            ...mergeRemote(target, p.feature, onEnsureTags),
             folderPath: p.feature.folderPath,
-            scenarios: p.feature.scenarios.map((s: any, i: number) => ({
-              ...s,
-              id: s.id || `${existingByName.id}-s${i}`,
-              featureId: existingByName.id,
-            })),
-            background: p.feature.background,
-            tags: p.feature.tags,
-            headerComments: p.feature.headerComments,
-          });
-          const roundTripped = featureToGherkin({
-            ...existingByName,
-            name: p.feature.name,
-            description: p.feature.description,
-            scenarios: p.feature.scenarios,
-            background: p.feature.background,
-            tags: p.feature.tags,
-            headerComments: p.feature.headerComments,
-          });
+          };
+          onUpdateFeature(target.id, merged);
           onMapFile({
-            featureId: existingByName.id,
+            featureId: target.id,
             filePath: p.filePath,
             sha: p.sha,
-            lastSyncedContent: roundTripped,
+            lastSyncedContent: featureToGherkin({ ...target, ...merged }),
             lastSyncedAt: new Date().toISOString(),
           });
-          updatedCount++;
-          reImported.push(p);
+          if (localContent === remoteContent) unchangedCount++;
+          else updatedCount++;
         } else {
-          newParsed.push(p);
+          // Keep local edits; record the remote as the new baseline so the
+          // Push tab shows the difference to push or discard.
+          onMapFile({
+            featureId: target.id,
+            filePath: p.filePath,
+            sha: p.sha,
+            lastSyncedContent: remoteContent,
+            lastSyncedAt: new Date().toISOString(),
+          });
+          keptLocal.push(target.name);
         }
       }
 
@@ -1279,14 +1302,18 @@ function PullTab({
         });
       }
 
+      const plural = (n: number, word: string) =>
+        `${n} ${word}${n !== 1 ? "s" : ""}`;
       const parts = [];
       if (newParsed.length > 0)
-        parts.push(
-          `${newParsed.length} new feature${newParsed.length !== 1 ? "s" : ""} imported`,
-        );
+        parts.push(`${plural(newParsed.length, "new feature")} imported`);
       if (updatedCount > 0)
+        parts.push(`${plural(updatedCount, "existing feature")} updated`);
+      if (unchangedCount > 0)
+        parts.push(`${plural(unchangedCount, "feature")} already up to date`);
+      if (keptLocal.length > 0)
         parts.push(
-          `${updatedCount} existing feature${updatedCount !== 1 ? "s" : ""} updated`,
+          `local changes kept for ${keptLocal.join(", ")} (see the Push tab to push or discard them)`,
         );
       setImportResult(parts.join(", ") + ".");
       setSelectedFiles(new Set());

@@ -36,6 +36,47 @@ const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
   showStepSuggestions: true,
 };
 
+const TAG_COLORS = [
+  "#22c55e",
+  "#3b82f6",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#ec4899",
+  "#06b6d4",
+  "#f97316",
+  "#14b8a6",
+  "#6366f1",
+];
+
+// Look up project tags by name (case-insensitive), creating missing ones.
+// `created` collects the new tags so the caller can add them to the store.
+function tagResolver(allTags: Tag[], projectId: string) {
+  const byName = new Map(
+    allTags
+      .filter((t) => t.projectId === projectId)
+      .map((t) => [t.name.toLowerCase(), t]),
+  );
+  const created: Tag[] = [];
+
+  const resolveTag = (tagName: string): Tag => {
+    const key = tagName.toLowerCase();
+    const found = byName.get(key);
+    if (found) return found;
+    const tag: Tag = {
+      id: generateId(),
+      projectId,
+      name: tagName,
+      color: TAG_COLORS[byName.size % TAG_COLORS.length],
+    };
+    byName.set(key, tag);
+    created.push(tag);
+    return tag;
+  };
+
+  return { resolveTag, created };
+}
+
 interface AppState {
   // Data
   projects: Project[];
@@ -108,6 +149,8 @@ interface AppState {
 
   // Tags
   addTag: (projectId: string, input: CreateTagInput) => Tag;
+  // Project tags for these names, creating any that don't exist yet.
+  ensureTags: (projectId: string, names: string[]) => Tag[];
   updateTag: (id: string, updates: Partial<CreateTagInput>) => void;
   deleteTag: (id: string) => void;
   assignTag: (
@@ -237,42 +280,10 @@ export const useAppStore = create<AppState>()(
           (f) => f.projectId === projectId,
         ).length;
 
-        // Build lookup of tags already in this project (by name)
-        const TAG_COLORS = [
-          "#22c55e",
-          "#3b82f6",
-          "#f59e0b",
-          "#ef4444",
-          "#8b5cf6",
-          "#ec4899",
-          "#06b6d4",
-          "#f97316",
-          "#14b8a6",
-          "#6366f1",
-        ];
-        const existingTagMap = new Map(
-          state.tags
-            .filter((t) => t.projectId === projectId)
-            .map((t) => [t.name.toLowerCase(), t]),
+        const { resolveTag, created: newTagEntries } = tagResolver(
+          state.tags,
+          projectId,
         );
-        const newTagEntries: Tag[] = [];
-
-        const resolveTag = (tagName: string): Tag => {
-          const key = tagName.toLowerCase();
-          if (existingTagMap.has(key)) return existingTagMap.get(key)!;
-          const tag: Tag = {
-            id: generateId(),
-            projectId,
-            name: tagName,
-            color:
-              TAG_COLORS[
-                (existingTagMap.size + newTagEntries.length) % TAG_COLORS.length
-              ],
-          };
-          existingTagMap.set(key, tag);
-          newTagEntries.push(tag);
-          return tag;
-        };
 
         const withProject = importedFeatures.map((f, i) => {
           const newFeatureId = generateId();
@@ -638,6 +649,15 @@ export const useAppStore = create<AppState>()(
         };
         set((s) => ({ tags: [...s.tags, tag] }));
         return tag;
+      },
+
+      ensureTags: (projectId, names) => {
+        const { resolveTag, created } = tagResolver(get().tags, projectId);
+        const tags = names.map(resolveTag);
+        if (created.length > 0) {
+          set((s) => ({ tags: [...s.tags, ...created] }));
+        }
+        return tags;
       },
 
       updateTag: (id, updates) => {
