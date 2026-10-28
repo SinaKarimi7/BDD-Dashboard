@@ -4,6 +4,7 @@ import { useAppStore } from "@/store";
 import { useShallow } from "zustand/react/shallow";
 import { Badge, Button, Input, Modal } from "@/components/ui";
 import { TAG_COLORS, generateColorFromName, hslToHex } from "@/lib/colors";
+import { normalizeTagName } from "@/lib/utils";
 
 interface TagPickerProps {
   projectId: string;
@@ -56,10 +57,13 @@ export function TagPicker({
     }
   };
 
+  const tagName = normalizeTagName(newTagName);
+  const nameError = newTagName.trim() ? tagName.error : undefined;
+
   const handleCreateTag = () => {
-    if (!newTagName.trim()) return;
+    if (tagName.error) return;
     const tag = addTag(projectId, {
-      name: newTagName.trim(),
+      name: tagName.name,
       color: effectiveColor,
     });
     assignTag(featureId, tag.id, targetType, targetId);
@@ -115,18 +119,19 @@ export function TagPicker({
           {showCreate ? (
             <div className="space-y-3 pt-2 border-t border-border">
               {/* Live preview */}
-              {newTagName.trim() && (
+              {tagName.name && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">
                     Preview:
                   </span>
-                  <Badge color={effectiveColor}>@{newTagName.trim()}</Badge>
+                  <Badge color={effectiveColor}>@{tagName.name}</Badge>
                 </div>
               )}
               <Input
                 placeholder="Tag name"
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
+                error={nameError}
                 autoFocus
                 onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
               />
@@ -203,7 +208,7 @@ export function TagPicker({
                 <Button
                   size="sm"
                   onClick={handleCreateTag}
-                  disabled={!newTagName.trim()}
+                  disabled={!!tagName.error}
                 >
                   Create
                 </Button>
