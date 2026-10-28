@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   Plus,
   GripVertical,
@@ -50,6 +50,7 @@ export function BackgroundEditor({
 }: BackgroundEditorProps) {
   const setBackground = useAppStore((s) => s.setBackground);
   const removeBackground = useAppStore((s) => s.removeBackground);
+  const updateFeature = useAppStore((s) => s.updateFeature);
 
   const [expanded, setExpanded] = useState(true);
   const [newKeyword, setNewKeyword] = useState<StepKeyword>("Given");
@@ -99,28 +100,33 @@ export function BackgroundEditor({
     setNewText("");
   }, [background, featureId, newKeyword, newText, setBackground]);
 
+  // One undo entry per focus of a step's text input, not one per keystroke.
+  const textUndoPending = useRef(false);
+
+  const handleTextFocus = useCallback(() => {
+    textUndoPending.current = true;
+  }, []);
+
+  // Update in place so step ids (and the inputs keyed by them) stay stable.
   const handleUpdateStep = useCallback(
     (stepId: string, updates: { keyword?: StepKeyword; text?: string }) => {
       if (!background) return;
-      pushUndo(featureId, "Edit background step");
-      const newSteps = background.steps.map((s) =>
-        s.id === stepId
-          ? {
-              keyword: updates.keyword ?? s.keyword,
-              text: updates.text ?? s.text,
-              dataTable: s.dataTable,
-              docString: s.docString,
-            }
-          : {
-              keyword: s.keyword,
-              text: s.text,
-              dataTable: s.dataTable,
-              docString: s.docString,
-            },
-      );
-      setBackground(featureId, newSteps);
+      if (updates.text === undefined) {
+        pushUndo(featureId, "Edit background step");
+      } else if (textUndoPending.current) {
+        pushUndo(featureId, "Edit background step");
+        textUndoPending.current = false;
+      }
+      updateFeature(featureId, {
+        background: {
+          ...background,
+          steps: background.steps.map((s) =>
+            s.id === stepId ? { ...s, ...updates } : s,
+          ),
+        },
+      });
     },
-    [background, featureId, setBackground],
+    [background, featureId, updateFeature],
   );
 
   const handleDeleteStep = useCallback(
@@ -153,17 +159,14 @@ export function BackgroundEditor({
       const oldIndex = steps.findIndex((s) => s.id === active.id);
       const newIndex = steps.findIndex((s) => s.id === over.id);
       const reordered = arrayMove(steps, oldIndex, newIndex);
-      setBackground(
-        featureId,
-        reordered.map((s) => ({
-          keyword: s.keyword,
-          text: s.text,
-          dataTable: s.dataTable,
-          docString: s.docString,
-        })),
-      );
+      updateFeature(featureId, {
+        background: {
+          ...background,
+          steps: reordered.map((s, i) => ({ ...s, position: i })),
+        },
+      });
     },
-    [background, featureId, setBackground, steps],
+    [background, featureId, updateFeature, steps],
   );
 
   // No background yet — show "Add Background" button
@@ -242,6 +245,7 @@ export function BackgroundEditor({
                       key={step.id}
                       step={step}
                       onUpdate={handleUpdateStep}
+                      onTextFocus={handleTextFocus}
                       onDelete={handleDeleteStep}
                     />
                   ))}
@@ -293,10 +297,16 @@ interface SortableBgStepProps {
     id: string,
     updates: { keyword?: StepKeyword; text?: string },
   ) => void;
+  onTextFocus: () => void;
   onDelete: (id: string) => void;
 }
 
-function SortableBgStep({ step, onUpdate, onDelete }: SortableBgStepProps) {
+function SortableBgStep({
+  step,
+  onUpdate,
+  onTextFocus,
+  onDelete,
+}: SortableBgStepProps) {
   const {
     attributes,
     listeners,
@@ -346,6 +356,7 @@ function SortableBgStep({ step, onUpdate, onDelete }: SortableBgStepProps) {
 
       <input
         value={step.text}
+        onFocus={onTextFocus}
         onChange={(e) => onUpdate(step.id, { text: e.target.value })}
         className="flex-1 bg-transparent text-sm outline-none min-w-0"
       />
