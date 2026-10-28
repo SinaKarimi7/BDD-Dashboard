@@ -1,9 +1,29 @@
+import {
+  AstBuilder,
+  GherkinClassicTokenMatcher,
+  Parser,
+  dialects,
+  type Dialect,
+} from "@cucumber/gherkin";
+import {
+  IdGenerator,
+  StepKeywordType,
+  type Background as AstBackground,
+  type Comment as AstComment,
+  type Examples as AstExamples,
+  type GherkinDocument,
+  type Rule as AstRule,
+  type Scenario as AstScenario,
+  type Step as AstStep,
+  type Tag as AstTag,
+} from "@cucumber/messages";
 import type {
   Background,
   Examples,
   Feature,
   Rule,
   Scenario,
+  ScenarioType,
   Step,
   StepKeyword,
 } from "@/types";
@@ -21,6 +41,183 @@ const TAG_COLORS = [
   "#14b8a6",
   "#6366f1",
 ];
+
+// ─── Keywords ─────────────────────────────────────────────────
+
+type HeaderKeyword =
+  | "feature"
+  | "background"
+  | "rule"
+  | "scenario"
+  | "scenarioOutline"
+  | "examples";
+
+// English keywords the app writes by default. The dialect lists start with
+// "Example" and "* ", so they can't be used for English as is.
+const ENGLISH: Record<HeaderKeyword, string> = {
+  feature: "Feature",
+  background: "Background",
+  rule: "Rule",
+  scenario: "Scenario",
+  scenarioOutline: "Scenario Outline",
+  examples: "Examples",
+};
+
+const STEP_DIALECT_KEY = {
+  Given: "given",
+  When: "when",
+  Then: "then",
+  And: "and",
+  But: "but",
+} as const;
+
+function dialectFor(language?: string): Dialect {
+  return (language && dialects[language]) || dialects.en;
+}
+
+function headerKeyword(language: string | undefined, kind: HeaderKeyword) {
+  if (!language || language === "en") return ENGLISH[kind];
+  const options = dialectFor(language)[kind];
+  // Scenario lists start with the word for "Example"; the next one is the
+  // plain "Scenario" (Scénario, Szenario, ...).
+  return kind === "scenario" && options.length > 1 ? options[1] : options[0];
+}
+
+export function isGherkinLanguage(code: string): boolean {
+  return code in dialects;
+}
+
+// Joke dialects in the Cucumber list. Files using them still parse; they're
+// only left out of the pickers.
+const NOVELTY_LANGUAGES = new Set([
+  "em",
+  "en-au",
+  "en-lol",
+  "en-old",
+  "en-pirate",
+  "en-Scouse",
+  "en-tx",
+  "tlh",
+]);
+
+const RTL_LANGUAGES = new Set(["ar", "fa", "he", "ur"]);
+
+export function isRtlLanguage(language?: string): boolean {
+  return !!language && RTL_LANGUAGES.has(language);
+}
+
+// Languages for the pickers, English first, e.g. "French (français)".
+// `current` is always listed, even when it's one of the joke dialects.
+export function gherkinLanguages(
+  current?: string,
+): { value: string; label: string }[] {
+  return Object.entries(dialects)
+    .filter(([code]) => !NOVELTY_LANGUAGES.has(code) || code === current)
+    .map(([code, d]) => ({
+      value: code,
+      label: d.name === d.native ? d.name : `${d.name} (${d.native})`,
+    }))
+    .sort((a, b) =>
+      a.value === "en" ? -1 : b.value === "en" ? 1 : a.label.localeCompare(b.label),
+    );
+}
+
+// Switch a feature to another language. Keywords spelled out in the old
+// language are dropped so everything is written in the new one ("*" stays).
+export function changeLanguage(
+  feature: Feature,
+  language: string,
+): Partial<Feature> {
+  const keepStar = (step: Step): Step => {
+    if (!step.sourceKeyword || step.sourceKeyword.text === "* ") return step;
+    const rest = { ...step };
+    delete rest.sourceKeyword;
+    return rest;
+  };
+  const plainBackground = (bg: Background | null | undefined) =>
+    bg ? { ...bg, keyword: undefined, steps: bg.steps.map(keepStar) } : bg;
+  return {
+    language: language === "en" ? undefined : language,
+    keyword: undefined,
+    background: plainBackground(feature.background) ?? null,
+    scenarios: feature.scenarios.map((sc) => ({
+      ...sc,
+      sourceKeyword: undefined,
+      rule: sc.rule
+        ? {
+            ...sc.rule,
+            keyword: undefined,
+            background: plainBackground(sc.rule.background) ?? undefined,
+          }
+        : undefined,
+      steps: sc.steps.map(keepStar),
+      examples: sc.examples.map((ex) => ({ ...ex, keyword: undefined })),
+    })),
+  };
+}
+
+// Default step keyword with its trailing space, e.g. "Given " or "Soit ".
+// Prefers a single word ("Et " over "Et que ") when the language has one.
+function stepKeyword(language: string | undefined, keyword: StepKeyword) {
+  if (!language || language === "en") return `${keyword} `;
+  const options = dialectFor(language)[STEP_DIALECT_KEY[keyword]].filter(
+    (k) => k !== "* ",
+  );
+  return options.find((k) => /^\S+ $/.test(k)) ?? options[0] ?? `${keyword} `;
+}
+
+function scenarioKeyword(language: string | undefined, scenario: Scenario) {
+  if (scenario.sourceKeyword?.type === scenario.type) {
+    return scenario.sourceKeyword.text;
+  }
+  return headerKeyword(
+    language,
+    scenario.type === "scenario_outline" ? "scenarioOutline" : "scenario",
+  );
+}
+
+export const STEP_KEYWORDS: StepKeyword[] = ["Given", "When", "Then", "And", "But"];
+
+// How a step keyword reads in the feature's language, e.g. "Soit" for Given.
+// A step keeps the spelling from its file (like "*") for its own keyword.
+export function stepKeywordLabel(
+  keyword: StepKeyword,
+  language?: string,
+  step?: Step,
+): string {
+  const text =
+    step?.sourceKeyword?.keyword === keyword
+      ? step.sourceKeyword.text
+      : stepKeyword(language, keyword);
+  return text.trim();
+}
+
+export function scenarioKeywordLabel(
+  scenario: Scenario,
+  language?: string,
+): string {
+  return scenarioKeyword(language, scenario);
+}
+
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Matches a line's leading keyword in the language, e.g. "Scénario:" or "Soit ".
+export function keywordPattern(language?: string): RegExp {
+  const d = dialectFor(language);
+  const headers = [
+    ...d.feature,
+    ...d.background,
+    ...d.rule,
+    ...d.scenario,
+    ...d.scenarioOutline,
+    ...d.examples,
+  ].map((k) => `${k}:`);
+  const steps = [...d.given, ...d.when, ...d.then, ...d.and, ...d.but];
+  const all = [...new Set([...headers, ...steps])].sort(
+    (a, b) => b.length - a.length,
+  );
+  return new RegExp(`^(${all.map(escapeRegExp).join("|")})`);
+}
 
 // ─── Export a single Feature to Gherkin text ──────────────────
 
@@ -56,50 +253,51 @@ function escapeCell(cell: string): string {
     .replace(/\n/g, "\\n");
 }
 
-function parseRow(trimmed: string): string[] {
-  const cells: string[] = [];
-  let cell = "";
-  for (let i = 1; i < trimmed.length; i++) {
-    const c = trimmed[i];
-    const next = trimmed[i + 1];
-    if (c === "\\" && (next === "|" || next === "\\")) {
-      cell += next;
-      i++;
-    } else if (c === "\\" && next === "n") {
-      cell += "\n";
-      i++;
-    } else if (c === "|") {
-      cells.push(cell.trim());
-      cell = "";
-    } else {
-      cell += c;
-    }
-  }
-  return cells;
-}
-
 function textLines(text: string, indent: string): string[] {
   return text.split("\n").map((l) => (l ? `${indent}${l}` : ""));
 }
 
-function stepLines(step: Step, indent: string): string[] {
+function stepLines(
+  step: Step,
+  indent: string,
+  language: string | undefined,
+): string[] {
   const lines: string[] = [];
   step.comments?.forEach((c) => lines.push(`${indent}${c}`));
-  lines.push(`${indent}${step.keyword} ${step.text}`);
+  const keyword =
+    step.sourceKeyword?.keyword === step.keyword
+      ? step.sourceKeyword.text
+      : stepKeyword(language, step.keyword);
+  lines.push(`${indent}${keyword}${step.text}`);
   const inner = `${indent}  `;
   if (step.dataTable) {
     lines.push(...alignTable(step.dataTable, inner));
   }
   if (step.docString != null) {
-    const delim = step.docString
-      .split("\n")
-      .some((l) => l.trim().startsWith('"""'))
-      ? "```"
-      : '"""';
+    let delim = step.docStringDelimiter ?? '"""';
+    if (step.docString.split("\n").some((l) => l.trim().startsWith(delim))) {
+      delim = delim === '"""' ? "```" : '"""';
+    }
     lines.push(`${inner}${delim}${step.docStringMediaType ?? ""}`);
     lines.push(...textLines(step.docString, inner));
     lines.push(`${inner}${delim}`);
   }
+  return lines;
+}
+
+function backgroundLines(
+  bg: Background,
+  indent: string,
+  language: string | undefined,
+): string[] {
+  const lines: string[] = [];
+  bg.headerComments?.forEach((c) => lines.push(`${indent}${c}`));
+  const keyword = bg.keyword ?? headerKeyword(language, "background");
+  lines.push(`${indent}${keyword}:${bg.name ? ` ${bg.name}` : ""}`);
+  byPosition(bg.steps).forEach((step) => {
+    lines.push(...stepLines(step, `${indent}  `, language));
+  });
+  lines.push("");
   return lines;
 }
 
@@ -115,6 +313,9 @@ function byPosition<T extends { position: number }>(items: T[]): T[] {
 
 export function featureToGherkin(feature: Feature): string {
   const lines: string[] = [];
+  const language = feature.language;
+
+  if (language) lines.push(`# language: ${language}`);
 
   // Header comments (e.g. copyright, author)
   if (feature.headerComments?.length) {
@@ -124,7 +325,8 @@ export function featureToGherkin(feature: Feature): string {
   // Feature-level tags
   lines.push(...tagLine(feature.tags.map((t) => t.name), ""));
 
-  lines.push(`Feature: ${feature.name}`);
+  const featureKeyword = feature.keyword ?? headerKeyword(language, "feature");
+  lines.push(`${featureKeyword}: ${feature.name}`);
 
   if (feature.description) {
     lines.push(...textLines(feature.description, "  "));
@@ -133,30 +335,30 @@ export function featureToGherkin(feature: Feature): string {
 
   // Background
   if (feature.background && feature.background.steps.length > 0) {
-    const bg = feature.background;
-    bg.headerComments?.forEach((c) => lines.push(`  ${c}`));
-    lines.push(`  Background:${bg.name ? ` ${bg.name}` : ""}`);
-    byPosition(bg.steps).forEach((step) => {
-      lines.push(...stepLines(step, "    "));
-    });
-    lines.push("");
+    lines.push(...backgroundLines(feature.background, "  ", language));
   }
 
   // Scenarios
   let ruleName: string | undefined;
   byPosition(feature.scenarios).forEach((scenario) => {
-    if (scenario.rule?.name !== ruleName) {
-      ruleName = scenario.rule?.name;
-      if (scenario.rule) {
-        lines.push(...tagLine(scenario.rule.tags ?? [], "  "));
-        lines.push(`  Rule: ${scenario.rule.name}`);
-        if (scenario.rule.description) {
-          lines.push(...textLines(scenario.rule.description, "    "));
+    const rule = scenario.rule;
+    if (rule?.name !== ruleName) {
+      ruleName = rule?.name;
+      if (rule) {
+        rule.headerComments?.forEach((c) => lines.push(`  ${c}`));
+        lines.push(...tagLine(rule.tags ?? [], "  "));
+        const keyword = rule.keyword ?? headerKeyword(language, "rule");
+        lines.push(`  ${keyword}: ${rule.name}`);
+        if (rule.description) {
+          lines.push(...textLines(rule.description, "    "));
         }
         lines.push("");
+        if (rule.background && rule.background.steps.length > 0) {
+          lines.push(...backgroundLines(rule.background, "    ", language));
+        }
       }
     }
-    const indent = scenario.rule ? "    " : "  ";
+    const indent = rule ? "    " : "  ";
     const inner = `${indent}  `;
 
     // Scenario comments
@@ -165,9 +367,9 @@ export function featureToGherkin(feature: Feature): string {
     // Scenario tags
     lines.push(...tagLine(scenario.tags.map((t) => t.name), indent));
 
-    const keyword =
-      scenario.type === "scenario_outline" ? "Scenario Outline" : "Scenario";
-    lines.push(`${indent}${keyword}: ${scenario.name}`);
+    lines.push(
+      `${indent}${scenarioKeyword(language, scenario)}: ${scenario.name}`,
+    );
 
     if (scenario.description) {
       lines.push(...textLines(scenario.description, inner));
@@ -175,7 +377,7 @@ export function featureToGherkin(feature: Feature): string {
 
     // Steps
     byPosition(scenario.steps).forEach((step) => {
-      lines.push(...stepLines(step, inner));
+      lines.push(...stepLines(step, inner, language));
     });
 
     // Examples
@@ -187,7 +389,8 @@ export function featureToGherkin(feature: Feature): string {
         lines.push("");
         ex.headerComments?.forEach((c) => lines.push(`${inner}${c}`));
         lines.push(...tagLine(ex.tags ?? [], inner));
-        lines.push(`${inner}Examples:${ex.name ? ` ${ex.name}` : ""}`);
+        const keyword = ex.keyword ?? headerKeyword(language, "examples");
+        lines.push(`${inner}${keyword}:${ex.name ? ` ${ex.name}` : ""}`);
         if (ex.headers.length > 0) {
           const allRows = [ex.headers, ...ex.rows];
           lines.push(...alignTable(allRows, `${inner}  `));
@@ -205,329 +408,265 @@ export function featureToGherkin(feature: Feature): string {
 
 // ─── Parse Gherkin text into a Feature ────────────────────────
 
-const SCENARIO_RE = /^(Scenario Outline|Scenario Template|Scenario|Example):(.*)$/;
-const STEP_RE = /^(Given|When|Then|And|But|\*)\s+(.+)$/;
-const DOC_STRING_OPEN_RE = /^("""|```)\s*(\S*)$/;
-
-// Free text after a Feature:, Rule: or Scenario: line, up to the next keyword.
-interface Description {
-  kind: "feature" | "rule" | "scenario" | "ignore";
-  lines: string[];
-  save: (text: string) => void;
+export interface GherkinParseResult {
+  feature: Feature | null;
+  // Parser messages with their position, e.g. "(4:3): expected: ..."
+  errors: string[];
 }
 
-function leadingSpaces(line: string): number {
-  return line.length - line.trimStart().length;
+const LANGUAGE_LINE = /^\s*#\s*language\s*:\s*(\S+)\s*$/;
+
+// The AST keeps the file's indentation in descriptions; store them flush left.
+function dedent(text: string): string {
+  const lines = text.split("\n").map((l) => l.trimEnd());
+  const indents = lines
+    .filter((l) => l)
+    .map((l) => l.length - l.trimStart().length);
+  const strip = indents.length > 0 ? Math.min(...indents) : 0;
+  return lines
+    .map((l) => l.slice(strip))
+    .join("\n")
+    .replace(/^\n+|\n+$/g, "");
+}
+
+// Tags or keyword, whichever comes first.
+function startLine(node: { location: { line: number }; tags?: readonly AstTag[] }) {
+  return Math.min(node.location.line, ...(node.tags ?? []).map((t) => t.location.line));
+}
+
+// Hands out comments in file order; each element takes the ones above it.
+function commentQueue(comments: readonly AstComment[]) {
+  const queue = [...comments].sort((a, b) => a.location.line - b.location.line);
+  return (beforeLine: number): string[] => {
+    const taken: string[] = [];
+    while (queue.length > 0 && queue[0].location.line < beforeLine) {
+      taken.push(queue.shift()!.text.trim());
+    }
+    return taken;
+  };
+}
+
+function toStepKeyword(step: AstStep, dialect: Dialect): StepKeyword {
+  switch (step.keywordType) {
+    case StepKeywordType.CONTEXT:
+      return "Given";
+    case StepKeywordType.ACTION:
+      return "When";
+    case StepKeywordType.OUTCOME:
+      return "Then";
+    case StepKeywordType.CONJUNCTION:
+      return dialect.but.includes(step.keyword) &&
+        !dialect.and.includes(step.keyword)
+        ? "But"
+        : "And";
+    default:
+      // "*" steps
+      return "And";
+  }
+}
+
+function parseErrors(error: unknown): string[] {
+  const errors = (error as { errors?: { message: string }[] }).errors;
+  if (errors?.length) return errors.map((e) => e.message);
+  return [error instanceof Error ? error.message : String(error)];
+}
+
+function toFeature(
+  doc: GherkinDocument,
+  text: string,
+  projectId: string,
+): Feature {
+  const ast = doc.feature!;
+  const featureId = generateId();
+  const takeComments = commentQueue(doc.comments);
+
+  // Only a "# language:" line makes the file non-English (or explicitly English)
+  const languageLine = text
+    .split(/\r?\n/)
+    .slice(0, ast.location.line - 1)
+    .map((l) => l.match(LANGUAGE_LINE)?.[1])
+    .find(Boolean);
+  const language = languageLine ? ast.language : undefined;
+  const dialect = dialectFor(ast.language);
+
+  const keywordIfCustom = (keyword: string, kind: HeaderKeyword) =>
+    keyword !== headerKeyword(language, kind) ? keyword : undefined;
+
+  const toTags = (tags: readonly AstTag[]) =>
+    tags.map((t, i) => ({
+      id: generateId(),
+      projectId,
+      name: t.name.replace(/^@/, ""),
+      color: TAG_COLORS[i % TAG_COLORS.length],
+    }));
+
+  const toSteps = (steps: readonly AstStep[], scenarioId: string): Step[] =>
+    steps.map((s, position) => {
+      const keyword = toStepKeyword(s, dialect);
+      const step: Step = {
+        id: generateId(),
+        scenarioId,
+        keyword,
+        text: s.text,
+        dataTable: s.dataTable
+          ? s.dataTable.rows.map((r) => r.cells.map((c) => c.value))
+          : null,
+        docString: s.docString ? s.docString.content : null,
+        position,
+      };
+      const comments = takeComments(s.location.line);
+      if (comments.length > 0) step.comments = comments;
+      if (s.docString?.mediaType) {
+        step.docStringMediaType = s.docString.mediaType;
+      }
+      if (s.docString && s.docString.delimiter !== '"""') {
+        step.docStringDelimiter = s.docString.delimiter;
+      }
+      if (s.keyword !== stepKeyword(language, keyword)) {
+        step.sourceKeyword = { keyword, text: s.keyword };
+      }
+      return step;
+    });
+
+  const toBackground = (bg: AstBackground): Background => {
+    const background: Background = {
+      id: generateId(),
+      featureId,
+      steps: [],
+    };
+    const comments = takeComments(bg.location.line);
+    if (comments.length > 0) background.headerComments = comments;
+    if (bg.name) background.name = bg.name;
+    const keyword = keywordIfCustom(bg.keyword, "background");
+    if (keyword) background.keyword = keyword;
+    background.steps = toSteps(bg.steps, "");
+    return background;
+  };
+
+  const toExamples = (ex: AstExamples, scenarioId: string, position: number) => {
+    const examples: Examples = {
+      id: generateId(),
+      scenarioId,
+      name: ex.name,
+      headers: ex.tableHeader?.cells.map((c) => c.value) ?? [],
+      rows: ex.tableBody.map((r) => r.cells.map((c) => c.value)),
+      position,
+    };
+    const comments = takeComments(startLine(ex));
+    if (comments.length > 0) examples.headerComments = comments;
+    if (ex.tags.length > 0) {
+      examples.tags = ex.tags.map((t) => t.name.replace(/^@/, ""));
+    }
+    const keyword = keywordIfCustom(ex.keyword, "examples");
+    if (keyword) examples.keyword = keyword;
+    return examples;
+  };
+
+  const scenarios: Scenario[] = [];
+  const addScenario = (sc: AstScenario, rule?: Rule) => {
+    const id = generateId();
+    const now = new Date().toISOString();
+    const isOutline =
+      sc.examples.length > 0 || dialect.scenarioOutline.includes(sc.keyword);
+    const type: ScenarioType = isOutline ? "scenario_outline" : "scenario";
+    const scenario: Scenario = {
+      id,
+      featureId,
+      name: sc.name,
+      type,
+      status: "backlog",
+      position: scenarios.length,
+      tags: toTags(sc.tags),
+      steps: [],
+      examples: [],
+      headerComments: takeComments(startLine(sc)),
+      createdAt: now,
+      updatedAt: now,
+    };
+    const description = dedent(sc.description);
+    if (description) scenario.description = description;
+    if (rule) scenario.rule = rule;
+    if (
+      sc.keyword !==
+      headerKeyword(language, isOutline ? "scenarioOutline" : "scenario")
+    ) {
+      scenario.sourceKeyword = { type, text: sc.keyword };
+    }
+    scenario.steps = toSteps(sc.steps, id);
+    scenario.examples = sc.examples.map((ex, i) => toExamples(ex, id, i));
+    scenarios.push(scenario);
+  };
+
+  const addRule = (ast: AstRule) => {
+    const rule: Rule = { name: ast.name };
+    const comments = takeComments(startLine(ast));
+    if (comments.length > 0) rule.headerComments = comments;
+    if (ast.tags.length > 0) {
+      rule.tags = ast.tags.map((t) => t.name.replace(/^@/, ""));
+    }
+    const description = dedent(ast.description);
+    if (description) rule.description = description;
+    const keyword = keywordIfCustom(ast.keyword, "rule");
+    if (keyword) rule.keyword = keyword;
+    for (const child of ast.children) {
+      if (child.background) rule.background = toBackground(child.background);
+      if (child.scenario) addScenario(child.scenario, rule);
+    }
+  };
+
+  const now = new Date().toISOString();
+  const feature: Feature = {
+    id: featureId,
+    projectId,
+    name: ast.name,
+    description: dedent(ast.description),
+    folderPath: "",
+    position: 0,
+    tags: toTags(ast.tags),
+    scenarios,
+    background: null,
+    headerComments: takeComments(startLine(ast)),
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (language) feature.language = language;
+  const featureKeyword = keywordIfCustom(ast.keyword, "feature");
+  if (featureKeyword) feature.keyword = featureKeyword;
+
+  for (const child of ast.children) {
+    if (child.background) feature.background = toBackground(child.background);
+    if (child.scenario) addScenario(child.scenario);
+    if (child.rule) addRule(child.rule);
+  }
+
+  const footer = takeComments(Infinity);
+  if (footer.length > 0) feature.footerComments = footer;
+
+  return feature;
+}
+
+export function parseGherkinWithErrors(
+  text: string,
+  projectId: string,
+): GherkinParseResult {
+  let doc: GherkinDocument;
+  try {
+    const parser = new Parser(
+      new AstBuilder(IdGenerator.incrementing()),
+      new GherkinClassicTokenMatcher(),
+    );
+    doc = parser.parse(text);
+  } catch (error) {
+    return { feature: null, errors: parseErrors(error) };
+  }
+  if (!doc.feature) {
+    return { feature: null, errors: ["No Feature: line found"] };
+  }
+  return { feature: toFeature(doc, text, projectId), errors: [] };
 }
 
 export function parseGherkin(text: string, projectId: string): Feature | null {
-  try {
-    const lines = text.split(/\r?\n/);
-    const feature: Feature = {
-      id: generateId(),
-      projectId,
-      name: "",
-      description: "",
-      folderPath: "",
-      position: 0,
-      tags: [],
-      scenarios: [],
-      background: null,
-      headerComments: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    let currentScenario: Scenario | null = null;
-    let currentRule: Rule | null = null;
-    let inBackground = false;
-    let inExamples = false;
-    let docString: {
-      delim: string;
-      indent: number;
-      mediaType: string;
-      lines: string[];
-    } | null = null;
-    let pendingTags: string[] = [];
-    let pendingComments: string[] = [];
-    let description: Description | null = null;
-
-    const toTags = (names: string[]) =>
-      names.map((name, i) => ({
-        id: generateId(),
-        projectId,
-        name,
-        color: TAG_COLORS[i % TAG_COLORS.length],
-      }));
-
-    const startDescription = (
-      kind: Description["kind"],
-      save: (text: string) => void,
-    ) => {
-      description = { kind, lines: [], save };
-    };
-
-    const finishDescription = () => {
-      if (!description) return;
-      const text = description.lines
-        .join("\n")
-        .replace(/\n+$/, "")
-        .replace(/^\n+/, "");
-      if (text) description.save(text);
-      description = null;
-    };
-
-    const takeComments = () => {
-      const comments = pendingComments;
-      pendingComments = [];
-      return comments;
-    };
-
-    const lastStep = (): Step | null => {
-      const steps =
-        inBackground && feature.background
-          ? feature.background.steps
-          : currentScenario?.steps;
-      return steps && steps.length > 0 ? steps[steps.length - 1] : null;
-    };
-
-    for (const rawLine of lines) {
-      const line = rawLine.trimEnd();
-      const trimmed = line.trim();
-
-      // ── Doc string content and closing delimiter ──
-      if (docString) {
-        if (trimmed === docString.delim) {
-          const target = lastStep();
-          if (target) {
-            target.docString = docString.lines.join("\n");
-            if (docString.mediaType) {
-              target.docStringMediaType = docString.mediaType;
-            }
-          }
-          docString = null;
-        } else {
-          // Keep indentation relative to the opening delimiter
-          const strip = Math.min(docString.indent, leadingSpaces(line));
-          docString.lines.push(line.slice(strip));
-        }
-        continue;
-      }
-
-      // ── Doc string opening delimiter (optionally with a media type) ──
-      const docOpen = trimmed.match(DOC_STRING_OPEN_RE);
-      if (docOpen) {
-        finishDescription();
-        docString = {
-          delim: docOpen[1],
-          indent: leadingSpaces(line),
-          mediaType: docOpen[2],
-          lines: [],
-        };
-        continue;
-      }
-
-      // ── Comments ──
-      if (trimmed.startsWith("#")) {
-        pendingComments.push(trimmed);
-        continue;
-      }
-
-      // ── Empty lines ──
-      if (!trimmed) {
-        // Empty lines within a description are preserved
-        if (description) (description as Description).lines.push("");
-        continue;
-      }
-
-      // ── Tags ──
-      if (trimmed.startsWith("@")) {
-        finishDescription();
-        pendingTags.push(
-          ...trimmed
-            .split(/\s+/)
-            .filter((t) => t.startsWith("@"))
-            .map((t) => t.slice(1)),
-        );
-        continue;
-      }
-
-      // ── Feature ──
-      if (trimmed.startsWith("Feature:")) {
-        feature.name = trimmed.replace("Feature:", "").trim();
-        feature.tags = toTags(pendingTags);
-        feature.headerComments = takeComments();
-        pendingTags = [];
-        startDescription("feature", (d) => (feature.description = d));
-        continue;
-      }
-
-      // ── Rule ──
-      if (trimmed.startsWith("Rule:")) {
-        finishDescription();
-        const rule: Rule = { name: trimmed.replace("Rule:", "").trim() };
-        if (pendingTags.length > 0) rule.tags = pendingTags;
-        pendingTags = [];
-        currentRule = rule;
-        currentScenario = null;
-        inBackground = false;
-        inExamples = false;
-        startDescription("rule", (d) => (rule.description = d));
-        continue;
-      }
-
-      // ── Background ──
-      if (trimmed.startsWith("Background:")) {
-        finishDescription();
-        inBackground = true;
-        inExamples = false;
-        currentScenario = null;
-        const background: Background = {
-          id: generateId(),
-          featureId: feature.id,
-          steps: [],
-        };
-        const name = trimmed.replace("Background:", "").trim();
-        if (name) background.name = name;
-        const comments = takeComments();
-        if (comments.length > 0) background.headerComments = comments;
-        feature.background = background;
-        pendingTags = [];
-        startDescription("ignore", () => {});
-        continue;
-      }
-
-      // ── Scenario / Scenario Outline / Example ──
-      const scenarioMatch = trimmed.match(SCENARIO_RE);
-      if (scenarioMatch) {
-        finishDescription();
-        inBackground = false;
-        inExamples = false;
-        const isOutline =
-          scenarioMatch[1] === "Scenario Outline" ||
-          scenarioMatch[1] === "Scenario Template";
-        const scenario: Scenario = {
-          id: generateId(),
-          featureId: feature.id,
-          name: scenarioMatch[2].trim(),
-          type: isOutline ? "scenario_outline" : "scenario",
-          status: "backlog",
-          position: feature.scenarios.length,
-          tags: toTags(pendingTags),
-          steps: [],
-          examples: [],
-          headerComments: takeComments(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        if (currentRule) scenario.rule = currentRule;
-        currentScenario = scenario;
-        feature.scenarios.push(scenario);
-        pendingTags = [];
-        startDescription("scenario", (d) => (scenario.description = d));
-        continue;
-      }
-
-      // ── Examples ──
-      if (
-        (trimmed.startsWith("Examples:") || trimmed.startsWith("Scenarios:")) &&
-        currentScenario
-      ) {
-        finishDescription();
-        inExamples = true;
-        const examples: Examples = {
-          id: generateId(),
-          scenarioId: currentScenario.id,
-          name: trimmed.replace(/^(Examples|Scenarios):/, "").trim(),
-          headers: [],
-          rows: [],
-          position: currentScenario.examples.length,
-        };
-        if (pendingTags.length > 0) examples.tags = pendingTags;
-        const comments = takeComments();
-        if (comments.length > 0) examples.headerComments = comments;
-        pendingTags = [];
-        currentScenario.examples.push(examples);
-        continue;
-      }
-
-      // Inside a Feature or Rule description, steps and tables are just text
-      const d = description as Description | null;
-      if (d && (d.kind === "feature" || d.kind === "rule")) {
-        d.lines.push(trimmed);
-        continue;
-      }
-
-      // ── Data table rows (| ... |) ──
-      if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
-        finishDescription();
-        const cells = parseRow(trimmed);
-
-        // Check if we're in examples
-        if (
-          inExamples &&
-          currentScenario &&
-          currentScenario.examples.length > 0
-        ) {
-          const lastEx =
-            currentScenario.examples[currentScenario.examples.length - 1];
-          if (lastEx.headers.length === 0) {
-            lastEx.headers = cells;
-          } else {
-            lastEx.rows.push(cells);
-          }
-          continue;
-        }
-
-        // Otherwise it's a data table for the last step
-        const target = lastStep();
-        if (target) {
-          if (!target.dataTable) target.dataTable = [];
-          target.dataTable.push(cells);
-        }
-        continue;
-      }
-
-      // ── Steps (Given/When/Then/And/But/*) ──
-      const stepMatch = trimmed.match(STEP_RE);
-      if (stepMatch) {
-        finishDescription();
-        inExamples = false;
-        const keyword =
-          stepMatch[1] === "*" ? "And" : (stepMatch[1] as StepKeyword);
-        const step: Step = {
-          id: generateId(),
-          scenarioId: currentScenario?.id || "",
-          keyword,
-          text: stepMatch[2],
-          dataTable: null,
-          docString: null,
-          position: 0,
-        };
-        const comments = takeComments();
-        if (comments.length > 0) step.comments = comments;
-
-        if (inBackground && feature.background) {
-          step.position = feature.background.steps.length;
-          feature.background.steps.push(step);
-        } else if (currentScenario) {
-          step.position = currentScenario.steps.length;
-          currentScenario.steps.push(step);
-        }
-        continue;
-      }
-
-      // ── Free text (description lines) ──
-      if (d) d.lines.push(trimmed);
-    }
-
-    finishDescription();
-    if (pendingComments.length > 0) feature.footerComments = pendingComments;
-
-    return feature;
-  } catch {
-    return null;
-  }
+  return parseGherkinWithErrors(text, projectId).feature;
 }
 
 // ─── Parse multiple feature files ─────────────────────────────
@@ -535,17 +674,21 @@ export function parseGherkin(text: string, projectId: string): Feature | null {
 export function parseFeatureFiles(
   files: { name: string; content: string; path?: string }[],
   projectId: string,
-): Feature[] {
-  return files
-    .map((file) => {
-      const feature = parseGherkin(file.content, projectId);
-      if (feature) {
-        feature.folderPath = file.path || "";
-        if (!feature.name && file.name) {
-          feature.name = file.name.replace(".feature", "");
-        }
-      }
-      return feature;
-    })
-    .filter(Boolean) as Feature[];
+): { features: Feature[]; errors: string[] } {
+  const features: Feature[] = [];
+  const errors: string[] = [];
+  for (const file of files) {
+    const result = parseGherkinWithErrors(file.content, projectId);
+    if (!result.feature) {
+      errors.push(...result.errors.map((e) => `${file.name} ${e}`));
+      continue;
+    }
+    const feature = result.feature;
+    feature.folderPath = file.path || "";
+    if (!feature.name && file.name) {
+      feature.name = file.name.replace(".feature", "");
+    }
+    features.push(feature);
+  }
+  return { features, errors };
 }

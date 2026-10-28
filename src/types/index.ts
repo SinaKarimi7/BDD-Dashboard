@@ -25,6 +25,11 @@ export interface Feature {
   background: Background | null;
   headerComments?: string[];
   footerComments?: string[];
+  // Set when the file has a "# language:" line; keywords are written in it.
+  language?: string;
+  // Keywords as written in the file, kept only when they differ from the
+  // default, e.g. "Ability" instead of "Feature".
+  keyword?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +38,9 @@ export interface Rule {
   name: string;
   tags?: string[];
   description?: string;
+  keyword?: string;
+  background?: Background;
+  headerComments?: string[];
 }
 
 export interface Scenario {
@@ -49,6 +57,8 @@ export interface Scenario {
   description?: string;
   // Scenarios sharing a rule name are written under one Rule: block.
   rule?: Rule;
+  // Keyword as written (e.g. "Example"), used while the type still matches.
+  sourceKeyword?: { type: ScenarioType; text: string };
   createdAt: string;
   updatedAt: string;
 }
@@ -61,7 +71,11 @@ export interface Step {
   dataTable: string[][] | null;
   docString: string | null;
   docStringMediaType?: string;
+  docStringDelimiter?: string;
   comments?: string[];
+  // Keyword as written, with its trailing space (e.g. "* ", "Soit "), used
+  // while `keyword` is unchanged.
+  sourceKeyword?: { keyword: StepKeyword; text: string };
   position: number;
 }
 
@@ -88,6 +102,7 @@ export interface Examples {
   position: number;
   tags?: string[];
   headerComments?: string[];
+  keyword?: string;
 }
 
 export interface Background {
@@ -96,6 +111,7 @@ export interface Background {
   steps: Step[];
   name?: string;
   headerComments?: string[];
+  keyword?: string;
 }
 
 // ─── Form Types ────────────────────────────────────────────────

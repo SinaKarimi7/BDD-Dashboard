@@ -19,6 +19,7 @@ import type {
   GitHubFileMapping,
 } from "@/types";
 import { generateId } from "@/lib/utils";
+import { isGherkinLanguage } from "@/lib/gherkin";
 
 export interface SystemSettings {
   defaultScenarioStatus: TriageStatus;
@@ -246,6 +247,11 @@ export const useAppStore = create<AppState>()(
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
+        // New features start in the language picked in System Settings
+        const language = state.systemSettings?.gherkinLanguage;
+        if (language && language !== "en" && isGherkinLanguage(language)) {
+          feature.language = language;
+        }
         set((s) => ({ features: [...s.features, feature] }));
         return feature;
       },
