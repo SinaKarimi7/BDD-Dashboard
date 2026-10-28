@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Plus, FolderOpen, MoreHorizontal, Trash2, Edit3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/store";
@@ -155,15 +155,25 @@ export function DashboardPage() {
                   <Card
                     hover
                     onClick={() => navigate(`/projects/${project.id}`)}
+                    className="has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring"
                   >
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <CardTitle className="truncate">
-                          {project.name}
+                          {/* Real link so keyboard users can open the project */}
+                          <Link
+                            to={`/projects/${project.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="focus-visible:outline-none"
+                          >
+                            {project.name}
+                          </Link>
                         </CardTitle>
                         <DropdownMenu
                           trigger={
                             <button
+                              type="button"
+                              aria-label={`Actions for ${project.name}`}
                               className="rounded-lg p-1.5 hover:bg-accent transition-colors cursor-pointer"
                               onClick={(e) => e.stopPropagation()}
                             >
