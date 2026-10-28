@@ -1,6 +1,10 @@
 import { useMemo } from "react";
 import type { Feature } from "@/types";
-import { featureToGherkin, keywordPattern } from "@/lib/gherkin";
+import {
+  featureToGherkin,
+  isRtlLanguage,
+  keywordPattern,
+} from "@/lib/gherkin";
 
 interface GherkinPreviewProps {
   feature: Feature;
@@ -20,7 +24,7 @@ export function GherkinPreview({ feature }: GherkinPreviewProps) {
       if (trimmed.startsWith("@")) {
         return (
           <div key={i} className="gherkin-tag">
-            {line}
+            <bdi>{line}</bdi>
           </div>
         );
       }
@@ -28,7 +32,8 @@ export function GherkinPreview({ feature }: GherkinPreviewProps) {
       if (trimmed.startsWith("#")) {
         return (
           <div key={i} className="gherkin-comment">
-            {line}
+            {/* Keeps "# language: fa" in order inside right-to-left text */}
+            <bdi>{line}</bdi>
           </div>
         );
       }
@@ -80,7 +85,10 @@ export function GherkinPreview({ feature }: GherkinPreviewProps) {
           Copy
         </button>
       </div>
-      <pre className="p-4 text-sm font-mono overflow-x-auto leading-relaxed">
+      <pre
+        dir={isRtlLanguage(feature.language) ? "rtl" : undefined}
+        className="p-4 text-sm font-mono overflow-x-auto leading-relaxed"
+      >
         {highlighted}
       </pre>
     </div>

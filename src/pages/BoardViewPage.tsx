@@ -29,7 +29,7 @@ import {
   useDraggable,
 } from "@dnd-kit/core";
 import { useAppStore } from "@/store";
-import type { Scenario, StepKeyword, TriageStatus } from "@/types";
+import type { Scenario, TriageStatus } from "@/types";
 import {
   Button,
   Badge,
@@ -43,7 +43,6 @@ import {
 } from "@/components/ui";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { exportSingleFeature } from "@/lib/export";
-import { stepKeywordLabel } from "@/lib/gherkin";
 import { PageTransition } from "@/components/animation";
 import { collapseTransition } from "@/lib/motion";
 
@@ -381,14 +380,7 @@ interface KanbanCardProps {
   onEdit: () => void;
 }
 
-function KanbanCard({
-  scenario,
-  featureId,
-  onClone,
-  onDelete,
-  onEdit,
-}: KanbanCardProps) {
-  const language = useAppStore((s) => s.getFeature(featureId)?.language);
+function KanbanCard({ scenario, onClone, onDelete, onEdit }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: scenario.id,
   });
@@ -472,7 +464,7 @@ function KanbanCard({
             .map(([kw, count]) => (
               <span key={kw} className="flex items-center gap-0.5">
                 <span className="w-1 h-1 rounded-full bg-primary/40" />
-                {count} {stepKeywordLabel(kw as StepKeyword, language)}
+                {count} {kw}
               </span>
             ))}
         </div>
@@ -505,7 +497,7 @@ function KanbanCard({
                   .map((step) => (
                     <div key={step.id} className="flex gap-1">
                       <span className="font-bold text-primary shrink-0">
-                        {stepKeywordLabel(step.keyword, language, step)}
+                        {step.keyword}
                       </span>
                       <span className="text-muted-foreground truncate">
                         {step.text}

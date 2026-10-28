@@ -9,8 +9,6 @@ import { PageTransition } from "@/components/animation";
 import { easing, duration } from "@/lib/motion";
 import { gherkinLanguages, isGherkinLanguage } from "@/lib/gherkin";
 
-const languageOptions = gherkinLanguages();
-
 export function SystemSettingsPage() {
   const systemSettings = useAppStore((s) => s.systemSettings);
   const updateSystemSettings = useAppStore((s) => s.updateSystemSettings);
@@ -93,7 +91,7 @@ export function SystemSettingsPage() {
                   label="Gherkin Language"
                   value={gherkinLang}
                   onChange={setGherkinLang}
-                  options={languageOptions}
+                  options={gherkinLanguages(gherkinLang)}
                   searchable
                 />
               </div>

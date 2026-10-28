@@ -29,6 +29,7 @@ import { useAppStore } from "@/store";
 import type { Step, StepKeyword } from "@/types";
 import { Button, Select } from "@/components/ui";
 import { pushUndo } from "@/hooks/useUndoRedo";
+import { isRtlLanguage } from "@/lib/gherkin";
 import { keywordOptions } from "./keywordOptions";
 
 interface StepEditorProps {
@@ -124,20 +125,25 @@ export function StepEditor({ featureId, scenarioId, steps }: StepEditorProps) {
 
       {/* Add new step */}
       <div className="flex items-center gap-2 mt-2">
-        <Select
-          value={newKeyword}
-          onChange={setNewKeyword}
-          options={keywordOptions(language)}
-          aria-label="Keyword for the new step"
-          className="h-8 w-auto shrink-0 rounded-md px-2 text-xs font-bold"
-        />
-        <input
-          value={newText}
-          onChange={(e) => setNewText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAddStep()}
-          placeholder="step description..."
-          className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
+        <div
+          dir={isRtlLanguage(language) ? "rtl" : undefined}
+          className="flex flex-1 items-center gap-2"
+        >
+          <Select
+            value={newKeyword}
+            onChange={setNewKeyword}
+            options={keywordOptions(language)}
+            aria-label="Keyword for the new step"
+            className="h-8 w-auto shrink-0 rounded-md px-2 text-xs font-bold"
+          />
+          <input
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddStep()}
+            placeholder="step description..."
+            className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
         <Button
           size="icon-sm"
           variant="ghost"
@@ -290,41 +296,47 @@ function SortableStepRow({
           <GripVertical className="w-3.5 h-3.5" />
         </button>
 
-        <Select
-          variant="inline"
-          value={step.keyword}
-          onChange={(keyword) => {
-            pushUndo(featureId, "Change step keyword");
-            onUpdate({ keyword });
-          }}
-          options={keywordOptions(language, step)}
-          aria-label="Step keyword"
-          className="shrink-0 text-xs font-bold"
-        />
-
-        {editing ? (
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onBlur={save}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") save();
-              if (e.key === "Escape") setEditing(false);
+        {/* Keyword and text follow the feature's writing direction */}
+        <div
+          dir={isRtlLanguage(language) ? "rtl" : undefined}
+          className="flex flex-1 min-w-0 items-center gap-2"
+        >
+          <Select
+            variant="inline"
+            value={step.keyword}
+            onChange={(keyword) => {
+              pushUndo(featureId, "Change step keyword");
+              onUpdate({ keyword });
             }}
-            className="flex-1 bg-transparent border-b border-primary outline-none text-sm"
-            autoFocus
+            options={keywordOptions(language, step)}
+            aria-label="Step keyword"
+            className="shrink-0 text-xs font-bold"
           />
-        ) : (
-          <span
-            className="flex-1 text-sm cursor-pointer hover:text-primary transition-colors"
-            onClick={() => {
-              setText(step.text);
-              setEditing(true);
-            }}
-          >
-            {step.text}
-          </span>
-        )}
+
+          {editing ? (
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onBlur={save}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") save();
+                if (e.key === "Escape") setEditing(false);
+              }}
+              className="flex-1 bg-transparent border-b border-primary outline-none text-sm"
+              autoFocus
+            />
+          ) : (
+            <span
+              className="flex-1 text-sm cursor-pointer hover:text-primary transition-colors"
+              onClick={() => {
+                setText(step.text);
+                setEditing(true);
+              }}
+            >
+              {step.text}
+            </span>
+          )}
+        </div>
 
         {/* Toggle data table button */}
         <button

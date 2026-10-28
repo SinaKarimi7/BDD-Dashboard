@@ -68,10 +68,9 @@ import { exportSingleFeature } from "@/lib/export";
 import {
   changeLanguage,
   gherkinLanguages,
+  isRtlLanguage,
   scenarioKeywordLabel,
 } from "@/lib/gherkin";
-
-const languageOptions = gherkinLanguages();
 import { PageTransition } from "@/components/animation";
 import { collapseTransition, easing, duration } from "@/lib/motion";
 import { useUndoRedo, pushUndo } from "@/hooks/useUndoRedo";
@@ -369,7 +368,7 @@ export function FeatureEditorPage() {
                   pushUndo(featureId!, "Change language");
                   updateFeature(featureId!, changeLanguage(feature, language));
                 }}
-                options={languageOptions}
+                options={gherkinLanguages(feature.language)}
                 searchable
                 icon={
                   <Languages className="w-4 h-4 shrink-0 text-muted-foreground" />
@@ -757,6 +756,7 @@ function SortableScenarioCard({
   };
 
   const keyword = scenarioKeywordLabel(scenario, language);
+  const rtl = isRtlLanguage(language);
 
   return (
     <div
@@ -800,11 +800,13 @@ function SortableScenarioCard({
                 if (e.key === "Escape") setEditingName(false);
               }}
               className="w-full bg-transparent border-b border-primary outline-none text-sm font-medium"
+              dir={rtl ? "rtl" : undefined}
               autoFocus
             />
           ) : (
             <button
-              className="text-left w-full cursor-pointer"
+              className="text-start w-full cursor-pointer"
+              dir={rtl ? "rtl" : undefined}
               onClick={onToggle}
             >
               <span className="text-sm">

@@ -30,6 +30,7 @@ import type { Background, Step, StepKeyword } from "@/types";
 import { Button, Select } from "@/components/ui";
 import { pushUndo } from "@/hooks/useUndoRedo";
 import { collapseTransition } from "@/lib/motion";
+import { isRtlLanguage } from "@/lib/gherkin";
 import { keywordOptions } from "./keywordOptions";
 
 interface BackgroundEditorProps {
@@ -250,20 +251,25 @@ export function BackgroundEditor({
 
               {/* Add step row */}
               <div className="flex items-center gap-2">
-                <Select
-                  value={newKeyword}
-                  onChange={setNewKeyword}
-                  options={keywordOptions(language)}
-                  aria-label="Keyword for the new step"
-                  className="h-8 w-auto shrink-0 rounded-md px-2 text-sm font-medium"
-                />
-                <input
-                  value={newText}
-                  onChange={(e) => setNewText(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddStep()}
-                  placeholder="Step text…"
-                  className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+                <div
+                  dir={isRtlLanguage(language) ? "rtl" : undefined}
+                  className="flex flex-1 items-center gap-2"
+                >
+                  <Select
+                    value={newKeyword}
+                    onChange={setNewKeyword}
+                    options={keywordOptions(language)}
+                    aria-label="Keyword for the new step"
+                    className="h-8 w-auto shrink-0 rounded-md px-2 text-sm font-medium"
+                  />
+                  <input
+                    value={newText}
+                    onChange={(e) => setNewText(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddStep()}
+                    placeholder="Step text…"
+                    className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -331,21 +337,27 @@ function SortableBgStep({
         <GripVertical className="w-3.5 h-3.5" />
       </button>
 
-      <Select
-        variant="inline"
-        value={step.keyword}
-        onChange={(keyword) => onUpdate(step.id, { keyword })}
-        options={keywordOptions(language, step)}
-        aria-label="Step keyword"
-        className="shrink-0 text-sm font-medium"
-      />
+      {/* Keyword and text follow the feature's writing direction */}
+      <div
+        dir={isRtlLanguage(language) ? "rtl" : undefined}
+        className="flex flex-1 min-w-0 items-center gap-2"
+      >
+        <Select
+          variant="inline"
+          value={step.keyword}
+          onChange={(keyword) => onUpdate(step.id, { keyword })}
+          options={keywordOptions(language, step)}
+          aria-label="Step keyword"
+          className="shrink-0 text-sm font-medium"
+        />
 
-      <input
-        value={step.text}
-        onFocus={onTextFocus}
-        onChange={(e) => onUpdate(step.id, { text: e.target.value })}
-        className="flex-1 bg-transparent text-sm outline-none min-w-0"
-      />
+        <input
+          value={step.text}
+          onFocus={onTextFocus}
+          onChange={(e) => onUpdate(step.id, { text: e.target.value })}
+          className="flex-1 bg-transparent text-sm outline-none min-w-0"
+        />
+      </div>
 
       <button
         onClick={() => onDelete(step.id)}

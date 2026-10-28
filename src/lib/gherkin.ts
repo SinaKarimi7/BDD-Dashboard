@@ -87,9 +87,32 @@ export function isGherkinLanguage(code: string): boolean {
   return code in dialects;
 }
 
-// Every language the parser knows, English first, e.g. "French (français)".
-export function gherkinLanguages(): { value: string; label: string }[] {
+// Joke dialects in the Cucumber list. Files using them still parse; they're
+// only left out of the pickers.
+const NOVELTY_LANGUAGES = new Set([
+  "em",
+  "en-au",
+  "en-lol",
+  "en-old",
+  "en-pirate",
+  "en-Scouse",
+  "en-tx",
+  "tlh",
+]);
+
+const RTL_LANGUAGES = new Set(["ar", "fa", "he", "ur"]);
+
+export function isRtlLanguage(language?: string): boolean {
+  return !!language && RTL_LANGUAGES.has(language);
+}
+
+// Languages for the pickers, English first, e.g. "French (français)".
+// `current` is always listed, even when it's one of the joke dialects.
+export function gherkinLanguages(
+  current?: string,
+): { value: string; label: string }[] {
   return Object.entries(dialects)
+    .filter(([code]) => !NOVELTY_LANGUAGES.has(code) || code === current)
     .map(([code, d]) => ({
       value: code,
       label: d.name === d.native ? d.name : `${d.name} (${d.native})`,

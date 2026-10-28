@@ -4,6 +4,7 @@ import {
   featureToGherkin,
   gherkinLanguages,
   isGherkinLanguage,
+  isRtlLanguage,
   keywordPattern,
   parseGherkin,
   parseGherkinWithErrors,
@@ -308,6 +309,18 @@ describe("parseGherkin / featureToGherkin", () => {
     expect(languages.length).toBeGreaterThan(70);
     expect(languages.map((l) => l.value)).toContain("zh-CN");
     expect(isGherkinLanguage("zh")).toBe(false);
+  });
+
+  it("leaves joke dialects out of the list unless in use", () => {
+    expect(gherkinLanguages().map((l) => l.value)).not.toContain("em");
+    expect(gherkinLanguages("em").map((l) => l.value)).toContain("em");
+    expect(parseGherkin("# language: em\n📚: F\n", "p1")?.language).toBe("em");
+  });
+
+  it("knows which languages are right-to-left", () => {
+    expect(["ar", "fa", "he", "ur"].every((l) => isRtlLanguage(l))).toBe(true);
+    expect(isRtlLanguage("fr")).toBe(false);
+    expect(isRtlLanguage(undefined)).toBe(false);
   });
 
   it("rejects text that isn't Gherkin", () => {
