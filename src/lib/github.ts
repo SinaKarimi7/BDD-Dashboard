@@ -83,12 +83,12 @@ function headers(token: string) {
   };
 }
 
-async function ghFetch<T>(
+async function ghRequest(
   token: string,
-  path: string,
+  url: string,
   init?: RequestInit,
-): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
+): Promise<Response> {
+  const res = await fetch(url, {
     ...init,
     headers: { ...headers(token), ...(init?.headers || {}) },
   });
@@ -96,7 +96,48 @@ async function ghFetch<T>(
     const body = await res.json().catch(() => ({}));
     throw new Error(body.message || `GitHub API error: ${res.status}`);
   }
+  return res;
+}
+
+async function ghFetch<T>(
+  token: string,
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const res = await ghRequest(token, `${API}${path}`, init);
   return res.json();
+}
+
+const MAX_PAGES = 10;
+
+function nextPageUrl(link: string | null): string | null {
+  if (!link) return null;
+  for (const part of link.split(",")) {
+    const match = part.match(/<([^>]+)>\s*;\s*rel="?next"?/);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+// Follows the Link header so lists don't stop at the first 100 items.
+async function ghFetchAll<T>(token: string, path: string): Promise<T[]> {
+  const items: T[] = [];
+  let url: string | null = `${API}${path}`;
+  for (let page = 0; url && page < MAX_PAGES; page++) {
+    const res = await ghRequest(token, url);
+    items.push(...((await res.json()) as T[]));
+    url = nextPageUrl(res.headers.get("link"));
+  }
+  return items;
+}
+
+function repoPath(owner: string, repo: string) {
+  return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+}
+
+// Encode each segment but keep the slashes between them
+function encodePath(path: string) {
+  return encodeURIComponent(path).replace(/%2F/g, "/");
 }
 
 // ─── User ───────────────────────────────────────────────────
@@ -111,15 +152,13 @@ export async function getUser(token: string) {
 // ─── Repos ──────────────────────────────────────────────────
 
 export async function listRepos(token: string): Promise<GitHubRepo[]> {
-  const raw = await ghFetch<
-    {
-      full_name: string;
-      owner: { login: string };
-      name: string;
-      private: boolean;
-      default_branch: string;
-    }[]
-  >(
+  const raw = await ghFetchAll<{
+    full_name: string;
+    owner: { login: string };
+    name: string;
+    private: boolean;
+    default_branch: string;
+  }>(
     token,
     "/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member",
   );
@@ -140,9 +179,9 @@ export async function listBranches(
   owner: string,
   repo: string,
 ): Promise<GitHubBranch[]> {
-  const raw = await ghFetch<{ name: string; commit: { sha: string } }[]>(
+  const raw = await ghFetchAll<{ name: string; commit: { sha: string } }>(
     token,
-    `/repos/${owner}/${repo}/branches?per_page=100`,
+    `${repoPath(owner, repo)}/branches?per_page=100`,
   );
   return raw.map((b) => ({ name: b.name, sha: b.commit.sha }));
 }
@@ -156,12 +195,13 @@ export async function getContents(
   path: string,
   branch: string,
 ): Promise<GitHubContentItem[]> {
-  const encodedPath = path
-    ? `/${encodeURIComponent(path).replace(/%2F/g, "/")}`
-    : "";
+  const encodedPath = path ? `/${encodePath(path)}` : "";
   const raw = await ghFetch<
     { name: string; path: string; sha: string; type: string; size?: number }[]
-  >(token, `/repos/${owner}/${repo}/contents${encodedPath}?ref=${branch}`);
+  >(
+    token,
+    `${repoPath(owner, repo)}/contents${encodedPath}?ref=${encodeURIComponent(branch)}`,
+  );
 
   return raw.map((item) => ({
     name: item.name,
@@ -172,8 +212,45 @@ export async function getContents(
   }));
 }
 
-// Get .feature files recursively
+// Get .feature files under `path` with one recursive tree request
 export async function getFeatureFiles(
+  token: string,
+  owner: string,
+  repo: string,
+  path: string,
+  branch: string,
+): Promise<GitHubContentItem[]> {
+  const tree = await ghFetch<{
+    truncated: boolean;
+    tree: { path: string; type: string; sha: string; size?: number }[];
+  }>(
+    token,
+    `${repoPath(owner, repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+  );
+  // Very large repos return a partial tree, so walk the folders instead
+  if (tree.truncated) {
+    return walkFeatureFiles(token, owner, repo, path, branch);
+  }
+
+  const base = path.replace(/^\/+|\/+$/g, "");
+  const prefix = base ? `${base}/` : "";
+  return tree.tree
+    .filter(
+      (item) =>
+        item.type === "blob" &&
+        item.path.endsWith(".feature") &&
+        item.path.startsWith(prefix),
+    )
+    .map((item) => ({
+      name: item.path.slice(item.path.lastIndexOf("/") + 1),
+      path: item.path,
+      sha: item.sha,
+      type: "file" as const,
+      size: item.size,
+    }));
+}
+
+async function walkFeatureFiles(
   token: string,
   owner: string,
   repo: string,
@@ -187,7 +264,7 @@ export async function getFeatureFiles(
     if (item.type === "file" && item.name.endsWith(".feature")) {
       results.push(item);
     } else if (item.type === "dir") {
-      const subItems = await getFeatureFiles(
+      const subItems = await walkFeatureFiles(
         token,
         owner,
         repo,
@@ -210,10 +287,9 @@ export async function getFileContent(
   path: string,
   branch: string,
 ): Promise<{ content: string; sha: string }> {
-  const encodedPath = encodeURIComponent(path).replace(/%2F/g, "/");
   const raw = await ghFetch<{ content: string; sha: string; encoding: string }>(
     token,
-    `/repos/${owner}/${repo}/contents/${encodedPath}?ref=${branch}`,
+    `${repoPath(owner, repo)}/contents/${encodePath(path)}?ref=${encodeURIComponent(branch)}`,
   );
 
   const content = decodeBase64Utf8(raw.content.replace(/\n/g, ""));
@@ -232,7 +308,6 @@ export async function createOrUpdateFile(
   sha?: string,
   branch?: string,
 ): Promise<{ sha: string }> {
-  const encodedPath = encodeURIComponent(path).replace(/%2F/g, "/");
   const body: Record<string, string> = {
     message,
     content: encodeBase64Utf8(content),
@@ -242,7 +317,7 @@ export async function createOrUpdateFile(
 
   const raw = await ghFetch<{ content: { sha: string } }>(
     token,
-    `/repos/${owner}/${repo}/contents/${encodedPath}`,
+    `${repoPath(owner, repo)}/contents/${encodePath(path)}`,
     {
       method: "PUT",
       body: JSON.stringify(body),
@@ -262,11 +337,10 @@ export async function deleteGitHubFile(
   message: string,
   branch?: string,
 ): Promise<void> {
-  const encodedPath = encodeURIComponent(path).replace(/%2F/g, "/");
   const body: Record<string, string> = { message, sha };
   if (branch) body.branch = branch;
 
-  await ghFetch(token, `/repos/${owner}/${repo}/contents/${encodedPath}`, {
+  await ghFetch(token, `${repoPath(owner, repo)}/contents/${encodePath(path)}`, {
     method: "DELETE",
     body: JSON.stringify(body),
   });
@@ -281,16 +355,17 @@ export async function createBranch(
   branchName: string,
   fromBranch: string,
 ): Promise<void> {
-  // Get the SHA of the source branch
-  const branches = await listBranches(token, owner, repo);
-  const source = branches.find((b) => b.name === fromBranch);
-  if (!source) throw new Error(`Branch "${fromBranch}" not found`);
+  // Read the source ref directly so it works past the first page of branches
+  const source = await ghFetch<{ object: { sha: string } }>(
+    token,
+    `${repoPath(owner, repo)}/git/ref/heads/${encodePath(fromBranch)}`,
+  );
 
-  await ghFetch(token, `/repos/${owner}/${repo}/git/refs`, {
+  await ghFetch(token, `${repoPath(owner, repo)}/git/refs`, {
     method: "POST",
     body: JSON.stringify({
       ref: `refs/heads/${branchName}`,
-      sha: source.sha,
+      sha: source.object.sha,
     }),
   });
 }
