@@ -192,6 +192,8 @@ export function GitHubSyncPage() {
             mappings={githubFileMappings}
             onUpdateMapping={updateGitHubFileMapping}
             onMapFile={addGitHubFileMapping}
+            onUpdateFeature={updateFeature}
+            onEnsureTags={ensureTags}
             onSwitchTab={() => setActiveTab("connection")}
           />
         )}
@@ -1546,6 +1548,8 @@ function PushTab({
   mappings,
   onUpdateMapping,
   onMapFile,
+  onUpdateFeature,
+  onEnsureTags,
   onSwitchTab,
 }: {
   projectId: string;
@@ -1557,6 +1561,8 @@ function PushTab({
     updates: Partial<GitHubFileMapping>,
   ) => void;
   onMapFile: (mapping: GitHubFileMapping) => void;
+  onUpdateFeature: (id: string, updates: Partial<Feature>) => void;
+  onEnsureTags: (projectId: string, names: string[]) => Tag[];
   onSwitchTab: () => void;
 }) {
   const [pushing, setPushing] = useState(false);
@@ -1698,8 +1704,11 @@ function PushTab({
           targetBranch,
         );
 
-        // Update mapping with new SHA
-        if (change.mapping) {
+        // Mappings track the connected branch only. A push to another branch
+        // leaves them alone, so the changes still show as pending here.
+        if (targetBranch !== connection.branch) {
+          // nothing to record
+        } else if (change.mapping) {
           onUpdateMapping(change.featureId, {
             sha: result.sha,
             lastSyncedContent: change.currentContent,
@@ -1734,17 +1743,15 @@ function PushTab({
     const mapping = mappings.find((m) => m.featureId === featureId);
     if (!mapping) return;
 
-    // Re-import the original content from the mapping
-    // For simplicity, notify user — full discard would require re-parsing
-    // We mark it as unchanged by syncing the current content
+    // Restore the feature from the content of its last sync
     const feature = features.find((f) => f.id === featureId);
-    if (feature) {
-      const currentContent = featureToGherkin(feature);
-      onUpdateMapping(featureId, {
-        lastSyncedContent: currentContent,
-        lastSyncedAt: new Date().toISOString(),
-      });
-    }
+    const synced = parseGherkin(mapping.lastSyncedContent, projectId);
+    if (!feature || !synced) return;
+    const merged = mergeRemote(feature, synced, onEnsureTags);
+    onUpdateFeature(featureId, merged);
+    onUpdateMapping(featureId, {
+      lastSyncedContent: featureToGherkin({ ...feature, ...merged }),
+    });
   };
 
   return (
