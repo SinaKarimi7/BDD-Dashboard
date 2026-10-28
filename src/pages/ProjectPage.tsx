@@ -103,6 +103,38 @@ export function ProjectPage() {
   const [filterStatus, setFilterStatus] = useState<TriageStatus | null>(null);
   const lastClickedRef = useRef<string | null>(null);
 
+  // Gather all unique tags in project for filter
+  const allProjectTags = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          features
+            .flatMap((f) => [...f.tags, ...f.scenarios.flatMap((s) => s.tags)])
+            .map((t) => [t.name, t]),
+        ).values(),
+      ),
+    [features],
+  );
+
+  const handleImport = useCallback(
+    (imported: typeof features) => {
+      const existingNames = new Set(features.map((f) => f.name.toLowerCase()));
+      const dupes = imported.filter((f) =>
+        existingNames.has(f.name.toLowerCase()),
+      );
+
+      if (dupes.length > 0) {
+        setPendingImport(imported);
+        setDuplicateNames(dupes.map((f) => f.name));
+        setShowImport(false);
+      } else {
+        importFeatures(projectId!, imported);
+        setShowImport(false);
+      }
+    },
+    [projectId, importFeatures, features],
+  );
+
   if (!project) {
     return (
       <div className="p-6 lg:p-8">
@@ -196,19 +228,6 @@ export function ProjectPage() {
     if (selected.length > 0) exportAllFeatures(selected, project.name);
   };
 
-  // Gather all unique tags in project for filter
-  const allProjectTags = useMemo(
-    () =>
-      Array.from(
-        new Map(
-          features
-            .flatMap((f) => [...f.tags, ...f.scenarios.flatMap((s) => s.tags)])
-            .map((t) => [t.name, t]),
-        ).values(),
-      ),
-    [features],
-  );
-
   const handleCreate = () => {
     if (!name.trim()) return;
     const feature = addFeature(projectId!, {
@@ -244,25 +263,6 @@ export function ProjectPage() {
     setFolderPath(feature.folderPath);
     setEditingFeature(feature.id);
   };
-
-  const handleImport = useCallback(
-    (imported: typeof features) => {
-      const existingNames = new Set(features.map((f) => f.name.toLowerCase()));
-      const dupes = imported.filter((f) =>
-        existingNames.has(f.name.toLowerCase()),
-      );
-
-      if (dupes.length > 0) {
-        setPendingImport(imported);
-        setDuplicateNames(dupes.map((f) => f.name));
-        setShowImport(false);
-      } else {
-        importFeatures(projectId!, imported);
-        setShowImport(false);
-      }
-    },
-    [projectId, importFeatures, features],
-  );
 
   const handleImportSkipDuplicates = () => {
     if (!pendingImport) return;

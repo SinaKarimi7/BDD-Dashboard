@@ -173,6 +173,19 @@ export function FeatureEditorPage() {
     }),
   );
 
+  // Auto-scroll to newly added scenario
+  useEffect(() => {
+    if (lastAddedScenarioId && newScenarioRef.current) {
+      setTimeout(() => {
+        newScenarioRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+        setLastAddedScenarioId(null);
+      }, 150);
+    }
+  }, [lastAddedScenarioId, feature?.scenarios.length]);
+
   if (!project || !feature) {
     return (
       <div className="p-6 lg:p-8">
@@ -207,19 +220,6 @@ export function FeatureEditorPage() {
     setExpandedScenarios((prev) => new Set(prev).add(sc.id));
     setLastAddedScenarioId(sc.id);
   };
-
-  // Auto-scroll to newly added scenario
-  useEffect(() => {
-    if (lastAddedScenarioId && newScenarioRef.current) {
-      setTimeout(() => {
-        newScenarioRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
-        setLastAddedScenarioId(null);
-      }, 150);
-    }
-  }, [lastAddedScenarioId, feature?.scenarios.length]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
