@@ -52,7 +52,7 @@ interface AppState {
   updateFeature: (id: string, updates: Partial<Feature>) => void;
   deleteFeature: (id: string) => void;
   reorderFeatures: (projectId: string, featureIds: string[]) => void;
-  importFeatures: (projectId: string, features: Feature[]) => void;
+  importFeatures: (projectId: string, features: Feature[]) => Feature[];
 
   // Scenario CRUD
   addScenario: (featureId: string, input: CreateScenarioInput) => Scenario;
@@ -297,6 +297,7 @@ export const useAppStore = create<AppState>()(
           tags:
             newTagEntries.length > 0 ? [...s.tags, ...newTagEntries] : s.tags,
         }));
+        return withProject;
       },
 
       // ── Scenarios ─────────────────────────────────────────
