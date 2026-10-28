@@ -76,6 +76,13 @@ import { collapseTransition, easing, duration } from "@/lib/motion";
 import { useUndoRedo, pushUndo } from "@/hooks/useUndoRedo";
 
 export function FeatureEditorPage() {
+  const { featureId } = useParams<{ featureId: string }>();
+  // Remount per feature so draft state (savedSnapshot etc.) never carries
+  // over when navigating between features.
+  return <FeatureEditor key={featureId} />;
+}
+
+function FeatureEditor() {
   const { projectId, featureId } = useParams<{
     projectId: string;
     featureId: string;

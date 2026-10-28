@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Plus,
   GripVertical,
@@ -211,8 +211,19 @@ function SortableStepRow({
     onUpdate({ dataTable: null });
   };
 
+  // One undo entry per focus of a cell, not one per keystroke.
+  const cellUndoPending = useRef(false);
+
+  const handleCellFocus = () => {
+    cellUndoPending.current = true;
+  };
+
   const updateCell = (row: number, col: number, value: string) => {
     if (!step.dataTable) return;
+    if (cellUndoPending.current) {
+      pushUndo(featureId, "Edit table cell");
+      cellUndoPending.current = false;
+    }
     const updated = step.dataTable.map((r, ri) =>
       ri === row ? r.map((c, ci) => (ci === col ? value : c)) : [...r],
     );
@@ -374,6 +385,7 @@ function SortableStepRow({
                           <button
                             onClick={() => {
                               if (!step.dataTable) return;
+                              pushUndo(featureId, "Insert table column");
                               onUpdate({
                                 dataTable: step.dataTable.map((r) => {
                                   const newRow = [...r];
@@ -417,6 +429,7 @@ function SortableStepRow({
                         <td key={ci} className="p-0">
                           <input
                             value={cell}
+                            onFocus={handleCellFocus}
                             onChange={(e) => updateCell(ri, ci, e.target.value)}
                             className="w-full bg-transparent px-2 py-1.5 text-xs outline-none focus:bg-accent/30 min-w-[80px]"
                             placeholder={ri === 0 ? "Header" : "Value"}
