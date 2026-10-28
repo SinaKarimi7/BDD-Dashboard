@@ -68,6 +68,7 @@ import {
   isOAuthConfigured,
   extractOAuthToken,
 } from "@/lib/github";
+import { newFeaturePaths } from "@/lib/sync";
 import {
   featureToGherkin,
   parseGherkin,
@@ -86,9 +87,13 @@ export function GitHubSyncPage() {
   const features = useAppStore(
     useShallow((s) => s.getProjectFeatures(projectId!)),
   );
-  const githubConnection = useAppStore((s) => s.githubConnection);
+  const githubConnection = useAppStore(
+    (s) => s.githubConnections[projectId!] ?? null,
+  );
   const githubFileMappings = useAppStore(
-    useShallow((s) => s.githubFileMappings),
+    useShallow((s) =>
+      s.githubFileMappings.filter((m) => m.projectId === projectId),
+    ),
   );
   const setGitHubConnection = useAppStore((s) => s.setGitHubConnection);
   const importFeatures = useAppStore((s) => s.importFeatures);
@@ -165,15 +170,17 @@ export function GitHubSyncPage() {
 
         {activeTab === "connection" && (
           <ConnectionTab
+            key={projectId}
             projectId={projectId!}
             connection={githubConnection}
-            onConnect={setGitHubConnection}
-            onDisconnect={() => setGitHubConnection(null)}
+            onConnect={(c) => setGitHubConnection(projectId!, c)}
+            onDisconnect={() => setGitHubConnection(projectId!, null)}
           />
         )}
 
         {activeTab === "pull" && (
           <PullTab
+            key={projectId}
             projectId={projectId!}
             connection={githubConnection}
             features={features}
@@ -189,6 +196,7 @@ export function GitHubSyncPage() {
 
         {activeTab === "push" && (
           <PushTab
+            key={projectId}
             projectId={projectId!}
             connection={githubConnection}
             features={features}
@@ -737,6 +745,7 @@ function ConnectionTab({
     }[]
   >([]);
   const [branches, setBranches] = useState<{ name: string }[]>([]);
+  const branchRequest = useRef(0);
   const [selectedRepo, setSelectedRepo] = useState(
     connection ? `${connection.owner}/${connection.repo}` : "",
   );
@@ -803,15 +812,20 @@ function ConnectionTab({
   };
 
   const handleRepoChange = async (fullName: string) => {
+    // Only the latest pick may set branches; older responses are dropped
+    const request = ++branchRequest.current;
     setSelectedRepo(fullName);
     setSelectedBranch("");
+    setBranches([]);
     const repo = repos.find((r) => r.full_name === fullName);
     if (!repo) return;
     try {
       const b = await listBranches(token.trim(), repo.owner, repo.name);
+      if (request !== branchRequest.current) return;
       setBranches(b);
       setSelectedBranch(repo.default_branch);
     } catch (e: any) {
+      if (request !== branchRequest.current) return;
       setError(e.message);
     }
   };
@@ -1275,6 +1289,7 @@ function PullTab({
           };
           onUpdateFeature(target.id, merged);
           onMapFile({
+            projectId,
             featureId: target.id,
             filePath: p.filePath,
             sha: p.sha,
@@ -1287,6 +1302,7 @@ function PullTab({
           // Keep local edits; record the remote as the new baseline so the
           // Push tab shows the difference to push or discard.
           onMapFile({
+            projectId,
             featureId: target.id,
             filePath: p.filePath,
             sha: p.sha,
@@ -1305,6 +1321,7 @@ function PullTab({
         );
         created.forEach((f, i) => {
           onMapFile({
+            projectId,
             featureId: f.id,
             filePath: newParsed[i].filePath,
             sha: newParsed[i].sha,
@@ -1602,23 +1619,25 @@ function PushTab({
     );
   }
 
+  // Unique paths for features not on GitHub yet
+  const newPaths = newFeaturePaths(
+    features.filter((f) => !mappings.some((m) => m.featureId === f.id)),
+    connection.path,
+    mappings.map((m) => m.filePath),
+  );
+
   // Build change list
   const changes: ChangeItem[] = features.map((feature) => {
     const mapping = mappings.find((m) => m.featureId === feature.id);
     const currentContent = featureToGherkin(feature);
-    const basePath = connection.path ? `${connection.path}/` : "";
 
     if (!mapping) {
       // New feature - not yet in GitHub
-      const fileName = feature.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_|_$/g, "");
       const newLines = currentContent.split("\n").length;
       return {
         featureId: feature.id,
         featureName: feature.name,
-        filePath: `${basePath}${fileName}.feature`,
+        filePath: newPaths.get(feature.id)!,
         type: "new" as const,
         currentContent,
         oldContent: "",
@@ -1726,6 +1745,7 @@ function PushTab({
           });
         } else {
           onMapFile({
+            projectId,
             featureId: change.featureId,
             filePath: change.filePath,
             sha: result.sha,
