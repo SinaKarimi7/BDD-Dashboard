@@ -20,6 +20,7 @@ import type {
 } from "@/types";
 import { generateId } from "@/lib/utils";
 import { isGherkinLanguage } from "@/lib/gherkin";
+import { STORE_VERSION, migrateStore } from "./migrations";
 
 export interface SystemSettings {
   defaultScenarioStatus: TriageStatus;
@@ -168,10 +169,17 @@ interface AppState {
   ) => void;
 
   // GitHub integration
-  githubConnection: GitHubConnection | null;
+  // Keyed by project id; each mapping carries its projectId
+  githubConnections: Record<string, GitHubConnection>;
   githubFileMappings: GitHubFileMapping[];
-  setGitHubConnection: (connection: GitHubConnection | null) => void;
-  setGitHubFileMappings: (mappings: GitHubFileMapping[]) => void;
+  setGitHubConnection: (
+    projectId: string,
+    connection: GitHubConnection | null,
+  ) => void;
+  setGitHubFileMappings: (
+    projectId: string,
+    mappings: GitHubFileMapping[],
+  ) => void;
   addGitHubFileMapping: (mapping: GitHubFileMapping) => void;
   updateGitHubFileMapping: (
     featureId: string,
@@ -229,8 +237,11 @@ export const useAppStore = create<AppState>()(
             projects: s.projects.filter((p) => p.id !== id),
             features: s.features.filter((f) => f.projectId !== id),
             tags: s.tags.filter((t) => t.projectId !== id),
+            githubConnections: Object.fromEntries(
+              Object.entries(s.githubConnections).filter(([pid]) => pid !== id),
+            ),
             githubFileMappings: s.githubFileMappings.filter(
-              (m) => !featureIds.has(m.featureId),
+              (m) => m.projectId !== id && !featureIds.has(m.featureId),
             ),
           };
         });
@@ -762,15 +773,31 @@ export const useAppStore = create<AppState>()(
       },
 
       // ── GitHub ────────────────────────────────────────────
-      githubConnection: null,
+      githubConnections: {},
       githubFileMappings: [],
 
-      setGitHubConnection: (connection) => {
-        set({ githubConnection: connection });
+      setGitHubConnection: (projectId, connection) => {
+        set((s) => {
+          const others = Object.fromEntries(
+            Object.entries(s.githubConnections).filter(
+              ([pid]) => pid !== projectId,
+            ),
+          );
+          return {
+            githubConnections: connection
+              ? { ...others, [projectId]: connection }
+              : others,
+          };
+        });
       },
 
-      setGitHubFileMappings: (mappings) => {
-        set({ githubFileMappings: mappings });
+      setGitHubFileMappings: (projectId, mappings) => {
+        set((s) => ({
+          githubFileMappings: [
+            ...s.githubFileMappings.filter((m) => m.projectId !== projectId),
+            ...mappings,
+          ],
+        }));
       },
 
       addGitHubFileMapping: (mapping) => {
@@ -820,6 +847,9 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "bdd-dashboard-store",
+      version: STORE_VERSION,
+      migrate: (persisted, version) =>
+        migrateStore(persisted, version) as AppState,
     },
   ),
 );

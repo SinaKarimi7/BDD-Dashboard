@@ -156,6 +156,7 @@ export interface GitHubConnection {
 }
 
 export interface GitHubFileMapping {
+  projectId: string;
   featureId: string;
   filePath: string;
   sha: string;

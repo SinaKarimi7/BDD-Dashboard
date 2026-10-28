@@ -36,8 +36,9 @@ function feature(id: string, projectId: string, extra?: Partial<Feature>) {
   } as Feature;
 }
 
-function mapping(featureId: string): GitHubFileMapping {
+function mapping(featureId: string, projectId: string): GitHubFileMapping {
   return {
+    projectId,
     featureId,
     filePath: `${featureId}.feature`,
     sha: "sha",
@@ -61,7 +62,11 @@ beforeEach(() => {
       feature("f3", "p2"),
     ],
     tags: [smoke, other],
-    githubFileMappings: [mapping("f1"), mapping("f2"), mapping("f3")],
+    githubFileMappings: [
+      mapping("f1", "p1"),
+      mapping("f2", "p1"),
+      mapping("f3", "p2"),
+    ],
   });
 });
 
