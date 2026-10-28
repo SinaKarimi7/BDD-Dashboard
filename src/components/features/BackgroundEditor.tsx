@@ -188,6 +188,8 @@ export function BackgroundEditor({
       <div className="flex items-center gap-2 px-4 py-3">
         <button
           onClick={() => setExpanded(!expanded)}
+          aria-label={expanded ? "Collapse background" : "Expand background"}
+          aria-expanded={expanded}
           className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
         >
           {expanded ? (
@@ -210,6 +212,7 @@ export function BackgroundEditor({
           onClick={handleRemoveBackground}
           className="shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
           title="Remove background"
+          aria-label="Remove background"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -332,6 +335,7 @@ function SortableBgStep({
       <button
         {...attributes}
         {...listeners}
+        aria-label="Drag to reorder step"
         className="cursor-grab shrink-0 text-muted-foreground hover:text-foreground"
       >
         <GripVertical className="w-3.5 h-3.5" />
@@ -355,12 +359,15 @@ function SortableBgStep({
           value={step.text}
           onFocus={onTextFocus}
           onChange={(e) => onUpdate(step.id, { text: e.target.value })}
+          aria-label="Step text"
           className="flex-1 bg-transparent text-sm outline-none min-w-0"
         />
       </div>
 
       <button
         onClick={() => onDelete(step.id)}
+        title="Delete step"
+        aria-label="Delete step"
         className="shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
       >
         <Trash2 className="w-3.5 h-3.5" />

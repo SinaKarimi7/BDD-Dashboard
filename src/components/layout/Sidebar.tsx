@@ -110,9 +110,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         className={cn(
           "fixed left-0 top-0 z-50 h-full bg-sidebar border-r border-sidebar-border flex flex-col",
           "lg:relative lg:z-auto",
-          "transition-[width,transform] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          "transition-[width,transform,visibility] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          // invisible keeps the hidden mobile sidebar out of the Tab order
           collapsed
-            ? "w-0 lg:w-16 -translate-x-full lg:translate-x-0"
+            ? "w-0 lg:w-16 -translate-x-full lg:translate-x-0 max-lg:invisible"
             : "w-[280px] translate-x-0",
         )}
       >
@@ -140,6 +141,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <Link
               key={item.path}
               to={item.path}
+              aria-label={collapsed ? item.label : undefined}
+              title={collapsed ? item.label : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                 isActive(item.path)
@@ -166,6 +169,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 <Link
                   key={item.path}
                   to={item.path}
+                  aria-label={collapsed ? item.label : undefined}
+                  title={collapsed ? item.label : undefined}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                     item.isActive(location.pathname)
@@ -216,7 +221,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <div className="hidden lg:flex flex-col items-center gap-2 p-3 border-t border-sidebar-border">
           <ThemeToggle collapsed={collapsed} />
           <button
+            type="button"
             onClick={onToggle}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
             className="rounded-lg p-2 hover:bg-accent transition-colors text-muted-foreground cursor-pointer"
           >
             <motion.div
@@ -235,7 +244,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 export function MobileMenuButton({ onClick }: { onClick: () => void }) {
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-label="Open menu"
       className="lg:hidden rounded-lg p-2 hover:bg-accent transition-colors cursor-pointer"
     >
       <Menu className="w-5 h-5" />

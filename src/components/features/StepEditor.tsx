@@ -183,6 +183,11 @@ function SortableStepRow({
   } = useSortable({ id: step.id });
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(step.text);
+  const textButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Put keyboard focus back on the step after editing with Enter/Escape
+  const refocusText = () =>
+    requestAnimationFrame(() => textButtonRef.current?.focus());
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -302,7 +307,8 @@ function SortableStepRow({
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+          aria-label="Drag to reorder step"
+          className="cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0"
         >
           <GripVertical className="w-3.5 h-3.5" />
         </button>
@@ -330,22 +336,32 @@ function SortableStepRow({
               onChange={(e) => setText(e.target.value)}
               onBlur={save}
               onKeyDown={(e) => {
-                if (e.key === "Enter") save();
-                if (e.key === "Escape") setEditing(false);
+                if (e.key === "Enter") {
+                  save();
+                  refocusText();
+                }
+                if (e.key === "Escape") {
+                  setEditing(false);
+                  refocusText();
+                }
               }}
+              aria-label="Step text"
               className="flex-1 bg-transparent border-b border-primary outline-none text-sm"
               autoFocus
             />
           ) : (
-            <span
-              className="flex-1 text-sm cursor-pointer hover:text-primary transition-colors"
+            <button
+              ref={textButtonRef}
+              type="button"
+              aria-label={`Edit step: ${step.text}`}
+              className="flex-1 min-w-0 text-start text-sm cursor-pointer hover:text-primary transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => {
                 setText(step.text);
                 setEditing(true);
               }}
             >
               {step.text}
-            </span>
+            </button>
           )}
         </div>
 
@@ -358,13 +374,16 @@ function SortableStepRow({
               : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary"
           }`}
           title={hasTable ? "Remove data table" : "Add data table"}
+          aria-label={hasTable ? "Remove data table" : "Add data table"}
         >
           <Table className="w-3.5 h-3.5" />
         </button>
 
         <button
           onClick={onDelete}
-          className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all cursor-pointer"
+          title="Delete step"
+          aria-label="Delete step"
+          className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-destructive transition-all cursor-pointer"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -396,6 +415,7 @@ function SortableStepRow({
                             }}
                             className="text-muted-foreground/40 hover:text-primary transition-colors cursor-pointer p-0.5"
                             title="Insert column before"
+                            aria-label="Insert column before"
                           >
                             <ArrowRight className="w-2.5 h-2.5 rotate-180" />
                           </button>
@@ -403,6 +423,7 @@ function SortableStepRow({
                             onClick={() => removeColumn(ci)}
                             className="text-muted-foreground/40 hover:text-destructive transition-colors cursor-pointer p-0.5"
                             title="Remove column"
+                            aria-label="Remove column"
                           >
                             <X className="w-2.5 h-2.5" />
                           </button>
@@ -410,6 +431,7 @@ function SortableStepRow({
                             onClick={() => insertColumnAt(ci)}
                             className="text-muted-foreground/40 hover:text-primary transition-colors cursor-pointer p-0.5"
                             title="Insert column after"
+                            aria-label="Insert column after"
                           >
                             <ArrowRight className="w-2.5 h-2.5" />
                           </button>
@@ -442,11 +464,14 @@ function SortableStepRow({
                             onClick={() => insertRowAt(ri)}
                             className="flex items-center justify-center py-1.5 px-1 text-muted-foreground/40 opacity-0 group-hover/row:opacity-100 hover:text-primary transition-all cursor-pointer"
                             title="Insert row below"
+                            aria-label="Insert row below"
                           >
                             <ArrowDown className="w-3 h-3" />
                           </button>
                           <button
                             onClick={() => removeRow(ri)}
+                            title="Remove row"
+                            aria-label="Remove row"
                             className="flex items-center justify-center py-1.5 px-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
                           >
                             <X className="w-3 h-3" />

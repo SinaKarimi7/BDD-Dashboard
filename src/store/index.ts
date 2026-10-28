@@ -221,11 +221,19 @@ export const useAppStore = create<AppState>()(
       },
 
       deleteProject: (id) => {
-        set((s) => ({
-          projects: s.projects.filter((p) => p.id !== id),
-          features: s.features.filter((f) => f.projectId !== id),
-          tags: s.tags.filter((t) => t.projectId !== id),
-        }));
+        set((s) => {
+          const featureIds = new Set(
+            s.features.filter((f) => f.projectId === id).map((f) => f.id),
+          );
+          return {
+            projects: s.projects.filter((p) => p.id !== id),
+            features: s.features.filter((f) => f.projectId !== id),
+            tags: s.tags.filter((t) => t.projectId !== id),
+            githubFileMappings: s.githubFileMappings.filter(
+              (m) => !featureIds.has(m.featureId),
+            ),
+          };
+        });
       },
 
       // ── Features ──────────────────────────────────────────
@@ -267,7 +275,12 @@ export const useAppStore = create<AppState>()(
       },
 
       deleteFeature: (id) => {
-        set((s) => ({ features: s.features.filter((f) => f.id !== id) }));
+        set((s) => ({
+          features: s.features.filter((f) => f.id !== id),
+          githubFileMappings: s.githubFileMappings.filter(
+            (m) => m.featureId !== id,
+          ),
+        }));
       },
 
       reorderFeatures: (projectId, featureIds) => {
@@ -667,8 +680,24 @@ export const useAppStore = create<AppState>()(
       },
 
       updateTag: (id, updates) => {
+        // Features and scenarios hold copies of the tag (export reads those),
+        // so patch the copies too
+        const patch = (t: Tag): Tag => (t.id === id ? { ...t, ...updates } : t);
         set((s) => ({
-          tags: s.tags.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+          tags: s.tags.map(patch),
+          features: s.features.map((f) =>
+            f.tags.some((t) => t.id === id) ||
+            f.scenarios.some((sc) => sc.tags.some((t) => t.id === id))
+              ? {
+                  ...f,
+                  tags: f.tags.map(patch),
+                  scenarios: f.scenarios.map((sc) => ({
+                    ...sc,
+                    tags: sc.tags.map(patch),
+                  })),
+                }
+              : f,
+          ),
         }));
       },
 

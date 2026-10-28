@@ -1,6 +1,13 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Plus, FolderOpen, MoreHorizontal, Trash2, Edit3 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Plus,
+  FolderOpen,
+  MoreHorizontal,
+  Trash2,
+  Edit3,
+  AlertTriangle,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/store";
 import {
@@ -40,6 +47,9 @@ export function DashboardPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [search, setSearch] = useState("");
+  const [deletingProject, setDeletingProject] = useState<
+    (typeof projects)[0] | null
+  >(null);
 
   const filteredProjects = projects.filter(
     (p) =>
@@ -155,15 +165,25 @@ export function DashboardPage() {
                   <Card
                     hover
                     onClick={() => navigate(`/projects/${project.id}`)}
+                    className="has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring"
                   >
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <CardTitle className="truncate">
-                          {project.name}
+                          {/* Real link so keyboard users can open the project */}
+                          <Link
+                            to={`/projects/${project.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="focus-visible:outline-none"
+                          >
+                            {project.name}
+                          </Link>
                         </CardTitle>
                         <DropdownMenu
                           trigger={
                             <button
+                              type="button"
+                              aria-label={`Actions for ${project.name}`}
                               className="rounded-lg p-1.5 hover:bg-accent transition-colors cursor-pointer"
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -180,7 +200,7 @@ export function DashboardPage() {
                           </DropdownItem>
                           <DropdownItem
                             destructive
-                            onClick={() => deleteProject(project.id)}
+                            onClick={() => setDeletingProject(project)}
                           >
                             <Trash2 className="w-4 h-4" /> Delete
                           </DropdownItem>
@@ -288,6 +308,40 @@ export function DashboardPage() {
               </Button>
               <Button onClick={handleUpdate} disabled={!name.trim()}>
                 Save Changes
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        <Modal
+          open={!!deletingProject}
+          onClose={() => setDeletingProject(null)}
+          title="Delete Project"
+          size="sm"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 text-destructive">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <p className="text-sm">
+                This will permanently delete{" "}
+                <strong>{deletingProject?.name}</strong> and all its data.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setDeletingProject(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (deletingProject) deleteProject(deletingProject.id);
+                  setDeletingProject(null);
+                }}
+              >
+                Delete Project
               </Button>
             </div>
           </div>

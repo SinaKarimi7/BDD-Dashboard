@@ -1,10 +1,24 @@
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar, MobileMenuButton } from "./Sidebar";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
+// Matches Tailwind's lg breakpoint, where the sidebar sits beside the content
+const isLargeScreen = () => window.matchMedia("(min-width: 1024px)").matches;
+
 export function AppShell() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const location = useLocation();
+  // On small screens the sidebar is an overlay, so start it closed
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => !isLargeScreen(),
+  );
+  const [lastPath, setLastPath] = useState(location.pathname);
+
+  // Close the overlay after navigating on small screens
+  if (location.pathname !== lastPath) {
+    setLastPath(location.pathname);
+    if (!isLargeScreen()) setSidebarCollapsed(true);
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
