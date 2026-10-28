@@ -1062,7 +1062,7 @@ function PullTab({
   connection: GitHubConnection | null;
   features: Feature[];
   mappings: GitHubFileMapping[];
-  onImport: (projectId: string, features: Feature[]) => void;
+  onImport: (projectId: string, features: Feature[]) => Feature[];
   onUpdateFeature: (id: string, updates: Partial<Feature>) => void;
   onMapFile: (mapping: GitHubFileMapping) => void;
   onDeleteFeature: (id: string) => void;
@@ -1262,53 +1262,34 @@ function PullTab({
         }
       }
 
-      // Import truly new features
+      // Import truly new features and map each one to its own file
       if (newParsed.length > 0) {
-        const featureData = newParsed.map((p) => p.feature);
-        onImport(projectId, featureData);
-
-        // Map newly created features
-        setTimeout(() => {
-          const state = useAppStore.getState();
-          const projectFeatures = state.features
-            .filter((f) => f.projectId === projectId)
-            .sort((a, b) => a.position - b.position);
-
-          const importedFeatures = projectFeatures.slice(-newParsed.length);
-          importedFeatures.forEach((f, i) => {
-            if (newParsed[i]) {
-              const roundTripped = featureToGherkin(f);
-              onMapFile({
-                featureId: f.id,
-                filePath: newParsed[i].filePath,
-                sha: newParsed[i].sha,
-                lastSyncedContent: roundTripped,
-                lastSyncedAt: new Date().toISOString(),
-              });
-            }
+        const created = onImport(
+          projectId,
+          newParsed.map((p) => p.feature),
+        );
+        created.forEach((f, i) => {
+          onMapFile({
+            featureId: f.id,
+            filePath: newParsed[i].filePath,
+            sha: newParsed[i].sha,
+            lastSyncedContent: featureToGherkin(f),
+            lastSyncedAt: new Date().toISOString(),
           });
-
-          const parts = [];
-          if (newParsed.length > 0)
-            parts.push(
-              `${newParsed.length} new feature${newParsed.length !== 1 ? "s" : ""} imported`,
-            );
-          if (updatedCount > 0)
-            parts.push(
-              `${updatedCount} existing feature${updatedCount !== 1 ? "s" : ""} updated`,
-            );
-          setImportResult(parts.join(", ") + ".");
-          setSelectedFiles(new Set());
-        }, 100);
-      } else {
-        const parts = [];
-        if (updatedCount > 0)
-          parts.push(
-            `${updatedCount} existing feature${updatedCount !== 1 ? "s" : ""} updated`,
-          );
-        setImportResult(parts.join(", ") + ".");
-        setSelectedFiles(new Set());
+        });
       }
+
+      const parts = [];
+      if (newParsed.length > 0)
+        parts.push(
+          `${newParsed.length} new feature${newParsed.length !== 1 ? "s" : ""} imported`,
+        );
+      if (updatedCount > 0)
+        parts.push(
+          `${updatedCount} existing feature${updatedCount !== 1 ? "s" : ""} updated`,
+        );
+      setImportResult(parts.join(", ") + ".");
+      setSelectedFiles(new Set());
     } catch (e: any) {
       setError(e.message);
     } finally {
