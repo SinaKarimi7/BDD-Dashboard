@@ -24,8 +24,15 @@ export interface Feature {
   scenarios: Scenario[];
   background: Background | null;
   headerComments?: string[];
+  footerComments?: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Rule {
+  name: string;
+  tags?: string[];
+  description?: string;
 }
 
 export interface Scenario {
@@ -39,6 +46,9 @@ export interface Scenario {
   steps: Step[];
   examples: Examples[];
   headerComments?: string[];
+  description?: string;
+  // Scenarios sharing a rule name are written under one Rule: block.
+  rule?: Rule;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,6 +60,8 @@ export interface Step {
   text: string;
   dataTable: string[][] | null;
   docString: string | null;
+  docStringMediaType?: string;
+  comments?: string[];
   position: number;
 }
 
@@ -74,12 +86,16 @@ export interface Examples {
   headers: string[];
   rows: string[][];
   position: number;
+  tags?: string[];
+  headerComments?: string[];
 }
 
 export interface Background {
   id: string;
   featureId: string;
   steps: Step[];
+  name?: string;
+  headerComments?: string[];
 }
 
 // ─── Form Types ────────────────────────────────────────────────
