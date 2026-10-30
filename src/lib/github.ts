@@ -2,18 +2,20 @@
 // Uses the GitHub REST API directly with fetch. No external deps needed.
 
 import type { GitHubRepo, GitHubBranch, GitHubContentItem } from "@/types";
+import { publicEnv } from "@/lib/public-env";
 
 const API = "https://api.github.com";
 
 // ─── OAuth ──────────────────────────────────────────────────
 
-const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID as
-  | string
-  | undefined;
+const GITHUB_CLIENT_ID = publicEnv("VITE_GITHUB_CLIENT_ID");
+
+const API_ORIGIN = publicEnv("VITE_API_ORIGIN").replace(/\/$/, "");
 
 /**
  * Start the GitHub OAuth flow by redirecting to GitHub's authorize page.
- * The Vercel serverless function at /api/github/callback handles the token exchange.
+ * GET /api/github/callback exchanges the code.
+ * VITE_API_ORIGIN points at that host when the site is hosted somewhere else.
  */
 export function startOAuthFlow(redirectPath: string) {
   if (!GITHUB_CLIENT_ID) {
@@ -25,7 +27,7 @@ export function startOAuthFlow(redirectPath: string) {
   const params = new URLSearchParams({
     client_id: GITHUB_CLIENT_ID,
     scope: "repo",
-    redirect_uri: `${window.location.origin}/api/github/callback`,
+    redirect_uri: `${API_ORIGIN || window.location.origin}/api/github/callback`,
     state: redirectPath,
   });
 

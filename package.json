@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "start": "node server.ts",
+    "test": "node --test server/*.test.ts && vitest run"
   },
   "dependencies": {
     "@cucumber/gherkin": "^42.0.1",

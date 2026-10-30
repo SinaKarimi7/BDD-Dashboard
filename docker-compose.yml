@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: "3000"
+      API_ONLY: ${API_ONLY:-}
+      VITE_GITHUB_CLIENT_ID: ${VITE_GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      VITE_API_ORIGIN: ${VITE_API_ORIGIN:-}
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+      APP_ORIGIN: ${APP_ORIGIN:-}
+    ports:
+      - "${PORT:-3000}:3000"

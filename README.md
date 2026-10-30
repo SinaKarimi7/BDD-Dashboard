@@ -41,7 +41,7 @@ One click for a single `.feature`. One click for a ZIP with proper folder struct
 ## Getting Started
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) v18+
+- [Node.js](https://nodejs.org/) v22.18+
 - npm, pnpm, or yarn
 
 ### Install & Run
@@ -67,7 +67,52 @@ Open [http://localhost:5173](http://localhost:5173) and start writing features.
 | `npm run dev` | Start development server with HMR |
 | `npm run build` | Type-check and build for production |
 | `npm run preview` | Preview the production build locally |
+| `npm run start` | Serve `dist/` and `GET /api/github/callback` |
 | `npm run lint` | Run ESLint across the codebase |
+| `npm test` | Run the OAuth callback checks |
+
+## Install
+
+You are putting the dashboard somewhere people can open it. Pick one way. OAuth env vars live in `.env.example`. `VITE_GITHUB_CLIENT_ID` is required in the browser for OAuth and has no default. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are required on the server for OAuth and have no default. The Docker site opens without them. `PORT` defaults to `3000`. `HOST` defaults to `0.0.0.0` for `npm start`. `API_ONLY` is optional and defaults to unset, which serves the site and the callback. Set `API_ONLY=1` to skip files. Docker reads `VITE_GITHUB_CLIENT_ID`, `VITE_API_ORIGIN`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY` when the container starts. A static host bakes those four at build time. `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are optional. Empty values use placeholders.
+
+### 1. Browser only
+
+Serve the built HTML, CSS, and JS. There is no API, so GitHub OAuth is off. A personal access token on the GitHub screen still works.
+
+```bash
+npm install
+npm run build
+```
+
+Host the `dist/` directory. Client routes such as `/projects/abc/github` must return `index.html`.
+
+### 2. GitHub Pages + Vercel
+
+GitHub Pages serves `dist/`. Vercel runs only `api/github/callback.ts`.
+
+On Vercel, set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `APP_ORIGIN` to the Pages origin (`https://<user>.github.io`). The GitHub OAuth callback URL is `https://<project>.vercel.app/api/github/callback`.
+
+Build the files with the client id and that Vercel origin:
+
+```bash
+VITE_GITHUB_CLIENT_ID=your_id VITE_API_ORIGIN=https://<project>.vercel.app npm run build
+```
+
+Publish `dist/` at the site root (a GitHub user site). The app routes are `/projects/...`. `VITE_API_ORIGIN` and `APP_ORIGIN` stay empty when the site and the API share a host.
+
+### 3. Docker
+
+You need Docker. One process serves the site and `GET /api/github/callback`.
+
+```bash
+docker compose up --build
+```
+
+Open [http://localhost:3000](http://localhost:3000). The site opens before GitHub OAuth is set up.
+
+Compose reads `.env` when that file is present. If a variable is not set there, Compose uses the environment variable of the same name. `PORT` is the host port. The process listens on 3000 inside the container. Leave `API_ONLY` unset. Set `API_ONLY=1` when this process should not serve files.
+
+For OAuth, copy `.env.example` to `.env` and set `VITE_GITHUB_CLIENT_ID`, `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET`. The GitHub callback URL is `http://localhost:3000/api/github/callback`. Restart after changing `.env`. You can set those same variables in the environment instead of in `.env`.
 
 ---
 
