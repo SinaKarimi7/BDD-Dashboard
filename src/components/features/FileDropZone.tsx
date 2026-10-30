@@ -3,6 +3,10 @@ import { Upload, FileText, Check, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import type { Feature } from "@/types";
 import { parseFeatureFiles } from "@/lib/gherkin";
+import {
+  ACCEPTED_FEATURE_EXTENSIONS,
+  screenFeatureFiles,
+} from "@/lib/fileImport";
 import { Button } from "@/components/ui";
 import { staggerContainer, staggerItem, easing, duration } from "@/lib/motion";
 
@@ -19,38 +23,30 @@ export function FileDropZone({ projectId, onImport }: FileDropZoneProps) {
 
   const processFiles = useCallback(
     async (files: FileList | File[]) => {
-      const fileArray = Array.from(files).filter(
-        (f) => f.name.endsWith(".feature") || f.type === "text/plain",
+      const { accepted, errors: fileErrors } = screenFeatureFiles(
+        Array.from(files),
       );
 
-      if (fileArray.length === 0) {
-        setErrors([
-          "No .feature files found. Please upload files with .feature extension.",
-        ]);
-        return;
-      }
-
-      const fileContents = await Promise.all(
-        fileArray.map(async (f) => ({
-          name: f.name,
-          content: await f.text(),
-          path: (f as any).webkitRelativePath
-            ? (f as any).webkitRelativePath.split("/").slice(0, -1).join("/")
-            : "features",
-        })),
+      // Read each file on its own so one bad entry (a dropped folder can't
+      // be read) doesn't sink the rest. Folders aren't walked, so every
+      // imported feature lands in "features".
+      const readResults = await Promise.all(
+        accepted.map(async (f) => {
+          try {
+            return { name: f.name, content: await f.text(), path: "features" };
+          } catch {
+            fileErrors.push(
+              `${f.name}: couldn't be read (folders aren't supported, drop the files inside instead)`,
+            );
+            return null;
+          }
+        }),
       );
+      const fileContents = readResults.filter((r) => r !== null);
 
-      const parsed = parseFeatureFiles(fileContents, projectId);
-      const errs: string[] = [];
-
-      fileArray.forEach((f, i) => {
-        if (!parsed[i]) {
-          errs.push(`Failed to parse: ${f.name}`);
-        }
-      });
-
-      setParsedFeatures(parsed);
-      setErrors(errs);
+      const { features, errors } = parseFeatureFiles(fileContents, projectId);
+      setParsedFeatures(features);
+      setErrors([...fileErrors, ...errors]);
     },
     [projectId],
   );
@@ -86,8 +82,10 @@ export function FileDropZone({ projectId, onImport }: FileDropZoneProps) {
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      processFiles(e.target.files);
+      processFiles(Array.from(e.target.files));
     }
+    // Reset so picking the same file again still fires onChange
+    e.target.value = "";
   };
 
   return (
@@ -128,7 +126,7 @@ export function FileDropZone({ projectId, onImport }: FileDropZoneProps) {
         <input
           type="file"
           multiple
-          accept=".feature,.txt"
+          accept={ACCEPTED_FEATURE_EXTENSIONS.join(",")}
           onChange={handleFileInput}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />

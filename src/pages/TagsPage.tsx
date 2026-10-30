@@ -8,6 +8,7 @@ import {
   FileText,
   FlaskConical,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/store";
@@ -25,6 +26,7 @@ import {
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { PageTransition } from "@/components/animation";
 import { staggerContainer, staggerItem, easing, duration } from "@/lib/motion";
+import { normalizeTagName } from "@/lib/utils";
 
 const TAG_COLORS = [
   "#3b82f6",
@@ -62,22 +64,33 @@ export function TagsPage() {
   const [selectedTag, setSelectedTag] = useState<TagType | null>(null);
   const [name, setName] = useState("");
   const [color, setColor] = useState(TAG_COLORS[0]);
+  const [deletingTag, setDeletingTag] = useState<TagType | null>(null);
 
   if (!project) return null;
 
+  const tagName = normalizeTagName(name);
+  // Only complain once something has been typed
+  const nameError = name.trim() ? tagName.error : undefined;
+
   const handleCreate = () => {
-    if (!name.trim()) return;
-    addTag(projectId!, { name: name.trim(), color });
+    if (tagName.error) return;
+    addTag(projectId!, { name: tagName.name, color });
     setName("");
     setColor(TAG_COLORS[0]);
     setShowCreate(false);
   };
 
   const handleUpdate = () => {
-    if (!editingTag || !name.trim()) return;
-    updateTag(editingTag, { name: name.trim(), color });
+    if (!editingTag || tagName.error) return;
+    updateTag(editingTag, { name: tagName.name, color });
     setName("");
     setEditingTag(null);
+  };
+
+  const handleDelete = () => {
+    if (!deletingTag) return;
+    deleteTag(deletingTag.id);
+    setDeletingTag(null);
   };
 
   const getUsageCount = (tagId: string) => {
@@ -208,7 +221,7 @@ export function TagsPage() {
                           <Edit3 className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => deleteTag(tag.id)}
+                          onClick={() => setDeletingTag(tag)}
                           className="rounded-lg p-1.5 hover:bg-destructive/10 transition-colors cursor-pointer text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -239,6 +252,7 @@ export function TagsPage() {
               placeholder="e.g. smoke, regression, auth"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              error={nameError}
               autoFocus
               onKeyDown={(e) =>
                 e.key === "Enter" &&
@@ -264,7 +278,7 @@ export function TagsPage() {
             </div>
             <div className="flex items-center gap-2 mt-2">
               <span className="text-sm text-muted-foreground">Preview:</span>
-              <Badge color={color}>@{name || "tag-name"}</Badge>
+              <Badge color={color}>@{tagName.name || "tag-name"}</Badge>
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <Button
@@ -279,9 +293,34 @@ export function TagsPage() {
               </Button>
               <Button
                 onClick={editingTag ? handleUpdate : handleCreate}
-                disabled={!name.trim()}
+                disabled={!!tagName.error}
               >
                 {editingTag ? "Save" : "Create"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        <Modal
+          open={!!deletingTag}
+          onClose={() => setDeletingTag(null)}
+          title="Delete Tag"
+          size="sm"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 text-destructive">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <p className="text-sm">
+                This will delete <strong>@{deletingTag?.name}</strong> and
+                remove it from every feature and scenario that uses it.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setDeletingTag(null)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDelete}>
+                Delete Tag
               </Button>
             </div>
           </div>

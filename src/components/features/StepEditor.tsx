@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Plus,
   GripVertical,
@@ -27,8 +27,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useAppStore } from "@/store";
 import type { Step, StepKeyword } from "@/types";
-import { Button } from "@/components/ui";
+import { Button, Select } from "@/components/ui";
 import { pushUndo } from "@/hooks/useUndoRedo";
+import { isRtlLanguage } from "@/lib/gherkin";
+import { keywordOptions } from "./keywordOptions";
 
 interface StepEditorProps {
   featureId: string;
@@ -36,19 +38,13 @@ interface StepEditorProps {
   steps: Step[];
 }
 
-const KEYWORDS: { value: StepKeyword; label: string; color: string }[] = [
-  { value: "Given", label: "Given", color: "text-blue-600" },
-  { value: "When", label: "When", color: "text-amber-600" },
-  { value: "Then", label: "Then", color: "text-green-600" },
-  { value: "And", label: "And", color: "text-gray-500" },
-  { value: "But", label: "But", color: "text-red-500" },
-];
 
 export function StepEditor({ featureId, scenarioId, steps }: StepEditorProps) {
   const addStep = useAppStore((s) => s.addStep);
   const updateStep = useAppStore((s) => s.updateStep);
   const deleteStep = useAppStore((s) => s.deleteStep);
   const reorderSteps = useAppStore((s) => s.reorderSteps);
+  const language = useAppStore((s) => s.getFeature(featureId)?.language);
 
   const [newKeyword, setNewKeyword] = useState<StepKeyword>("Given");
   const [newText, setNewText] = useState("");
@@ -129,24 +125,25 @@ export function StepEditor({ featureId, scenarioId, steps }: StepEditorProps) {
 
       {/* Add new step */}
       <div className="flex items-center gap-2 mt-2">
-        <select
-          value={newKeyword}
-          onChange={(e) => setNewKeyword(e.target.value as StepKeyword)}
-          className="h-8 rounded-md border border-input bg-background px-2 text-xs font-bold text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+        <div
+          dir={isRtlLanguage(language) ? "rtl" : undefined}
+          className="flex flex-1 items-center gap-2"
         >
-          {KEYWORDS.map((kw) => (
-            <option key={kw.value} value={kw.value}>
-              {kw.label}
-            </option>
-          ))}
-        </select>
-        <input
-          value={newText}
-          onChange={(e) => setNewText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAddStep()}
-          placeholder="step description..."
-          className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
+          <Select
+            value={newKeyword}
+            onChange={setNewKeyword}
+            options={keywordOptions(language)}
+            aria-label="Keyword for the new step"
+            className="h-8 w-auto shrink-0 rounded-md px-2 text-xs font-bold"
+          />
+          <input
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddStep()}
+            placeholder="step description..."
+            className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
         <Button
           size="icon-sm"
           variant="ghost"
@@ -186,6 +183,11 @@ function SortableStepRow({
   } = useSortable({ id: step.id });
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(step.text);
+  const textButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Put keyboard focus back on the step after editing with Enter/Escape
+  const refocusText = () =>
+    requestAnimationFrame(() => textButtonRef.current?.focus());
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -200,7 +202,7 @@ function SortableStepRow({
     setEditing(false);
   };
 
-  const kwColor = KEYWORDS.find((k) => k.value === step.keyword)?.color ?? "";
+  const language = useAppStore((s) => s.getFeature(featureId)?.language);
 
   const hasTable = step.dataTable && step.dataTable.length > 0;
 
@@ -214,8 +216,19 @@ function SortableStepRow({
     onUpdate({ dataTable: null });
   };
 
+  // One undo entry per focus of a cell, not one per keystroke.
+  const cellUndoPending = useRef(false);
+
+  const handleCellFocus = () => {
+    cellUndoPending.current = true;
+  };
+
   const updateCell = (row: number, col: number, value: string) => {
     if (!step.dataTable) return;
+    if (cellUndoPending.current) {
+      pushUndo(featureId, "Edit table cell");
+      cellUndoPending.current = false;
+    }
     const updated = step.dataTable.map((r, ri) =>
       ri === row ? r.map((c, ci) => (ci === col ? value : c)) : [...r],
     );
@@ -294,49 +307,63 @@ function SortableStepRow({
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+          aria-label="Drag to reorder step"
+          className="cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0"
         >
           <GripVertical className="w-3.5 h-3.5" />
         </button>
 
-        <select
-          value={step.keyword}
-          onChange={(e) => {
-            pushUndo(featureId, "Change step keyword");
-            onUpdate({ keyword: e.target.value as StepKeyword });
-          }}
-          className={`shrink-0 bg-transparent text-xs font-bold focus:outline-none cursor-pointer ${kwColor}`}
+        {/* Keyword and text follow the feature's writing direction */}
+        <div
+          dir={isRtlLanguage(language) ? "rtl" : undefined}
+          className="flex flex-1 min-w-0 items-center gap-2"
         >
-          {KEYWORDS.map((kw) => (
-            <option key={kw.value} value={kw.value}>
-              {kw.label}
-            </option>
-          ))}
-        </select>
-
-        {editing ? (
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onBlur={save}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") save();
-              if (e.key === "Escape") setEditing(false);
+          <Select
+            variant="inline"
+            value={step.keyword}
+            onChange={(keyword) => {
+              pushUndo(featureId, "Change step keyword");
+              onUpdate({ keyword });
             }}
-            className="flex-1 bg-transparent border-b border-primary outline-none text-sm"
-            autoFocus
+            options={keywordOptions(language, step)}
+            aria-label="Step keyword"
+            className="shrink-0 text-xs font-bold"
           />
-        ) : (
-          <span
-            className="flex-1 text-sm cursor-pointer hover:text-primary transition-colors"
-            onClick={() => {
-              setText(step.text);
-              setEditing(true);
-            }}
-          >
-            {step.text}
-          </span>
-        )}
+
+          {editing ? (
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onBlur={save}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  save();
+                  refocusText();
+                }
+                if (e.key === "Escape") {
+                  setEditing(false);
+                  refocusText();
+                }
+              }}
+              aria-label="Step text"
+              className="flex-1 bg-transparent border-b border-primary outline-none text-sm"
+              autoFocus
+            />
+          ) : (
+            <button
+              ref={textButtonRef}
+              type="button"
+              aria-label={`Edit step: ${step.text}`}
+              className="flex-1 min-w-0 text-start text-sm cursor-pointer hover:text-primary transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => {
+                setText(step.text);
+                setEditing(true);
+              }}
+            >
+              {step.text}
+            </button>
+          )}
+        </div>
 
         {/* Toggle data table button */}
         <button
@@ -347,13 +374,16 @@ function SortableStepRow({
               : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary"
           }`}
           title={hasTable ? "Remove data table" : "Add data table"}
+          aria-label={hasTable ? "Remove data table" : "Add data table"}
         >
           <Table className="w-3.5 h-3.5" />
         </button>
 
         <button
           onClick={onDelete}
-          className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all cursor-pointer"
+          title="Delete step"
+          aria-label="Delete step"
+          className="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-destructive transition-all cursor-pointer"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -374,6 +404,7 @@ function SortableStepRow({
                           <button
                             onClick={() => {
                               if (!step.dataTable) return;
+                              pushUndo(featureId, "Insert table column");
                               onUpdate({
                                 dataTable: step.dataTable.map((r) => {
                                   const newRow = [...r];
@@ -384,6 +415,7 @@ function SortableStepRow({
                             }}
                             className="text-muted-foreground/40 hover:text-primary transition-colors cursor-pointer p-0.5"
                             title="Insert column before"
+                            aria-label="Insert column before"
                           >
                             <ArrowRight className="w-2.5 h-2.5 rotate-180" />
                           </button>
@@ -391,6 +423,7 @@ function SortableStepRow({
                             onClick={() => removeColumn(ci)}
                             className="text-muted-foreground/40 hover:text-destructive transition-colors cursor-pointer p-0.5"
                             title="Remove column"
+                            aria-label="Remove column"
                           >
                             <X className="w-2.5 h-2.5" />
                           </button>
@@ -398,6 +431,7 @@ function SortableStepRow({
                             onClick={() => insertColumnAt(ci)}
                             className="text-muted-foreground/40 hover:text-primary transition-colors cursor-pointer p-0.5"
                             title="Insert column after"
+                            aria-label="Insert column after"
                           >
                             <ArrowRight className="w-2.5 h-2.5" />
                           </button>
@@ -417,6 +451,7 @@ function SortableStepRow({
                         <td key={ci} className="p-0">
                           <input
                             value={cell}
+                            onFocus={handleCellFocus}
                             onChange={(e) => updateCell(ri, ci, e.target.value)}
                             className="w-full bg-transparent px-2 py-1.5 text-xs outline-none focus:bg-accent/30 min-w-[80px]"
                             placeholder={ri === 0 ? "Header" : "Value"}
@@ -429,11 +464,14 @@ function SortableStepRow({
                             onClick={() => insertRowAt(ri)}
                             className="flex items-center justify-center py-1.5 px-1 text-muted-foreground/40 opacity-0 group-hover/row:opacity-100 hover:text-primary transition-all cursor-pointer"
                             title="Insert row below"
+                            aria-label="Insert row below"
                           >
                             <ArrowDown className="w-3 h-3" />
                           </button>
                           <button
                             onClick={() => removeRow(ri)}
+                            title="Remove row"
+                            aria-label="Remove row"
                             className="flex items-center justify-center py-1.5 px-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
                           >
                             <X className="w-3 h-3" />
@@ -465,5 +503,3 @@ function SortableStepRow({
     </div>
   );
 }
-
-const _KEYWORDS = KEYWORDS; // re-export for SortableStepRow

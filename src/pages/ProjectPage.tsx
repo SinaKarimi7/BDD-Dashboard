@@ -101,7 +101,40 @@ export function ProjectPage() {
   );
   const [filterTags, setFilterTags] = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<TriageStatus | null>(null);
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
   const lastClickedRef = useRef<string | null>(null);
+
+  // Gather all unique tags in project for filter
+  const allProjectTags = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          features
+            .flatMap((f) => [...f.tags, ...f.scenarios.flatMap((s) => s.tags)])
+            .map((t) => [t.name, t]),
+        ).values(),
+      ),
+    [features],
+  );
+
+  const handleImport = useCallback(
+    (imported: typeof features) => {
+      const existingNames = new Set(features.map((f) => f.name.toLowerCase()));
+      const dupes = imported.filter((f) =>
+        existingNames.has(f.name.toLowerCase()),
+      );
+
+      if (dupes.length > 0) {
+        setPendingImport(imported);
+        setDuplicateNames(dupes.map((f) => f.name));
+        setShowImport(false);
+      } else {
+        importFeatures(projectId!, imported);
+        setShowImport(false);
+      }
+    },
+    [projectId, importFeatures, features],
+  );
 
   if (!project) {
     return (
@@ -135,9 +168,15 @@ export function ProjectPage() {
     return true;
   });
 
+  // Bulk actions only touch selected features that the current search and
+  // filters still show, so nothing hidden gets deleted by surprise
+  const visibleSelectedIds = filteredFeatures
+    .filter((f) => selectedFeatures.has(f.id))
+    .map((f) => f.id);
+
   const handleFeatureClick = (featureId: string, event: React.MouseEvent) => {
     if (
-      selectedFeatures.size > 0 ||
+      visibleSelectedIds.length > 0 ||
       event.ctrlKey ||
       event.metaKey ||
       event.shiftKey
@@ -176,10 +215,7 @@ export function ProjectPage() {
 
   const toggleSelectAll = () => {
     const ids = filteredFeatures.map((f) => f.id);
-    if (
-      selectedFeatures.size === ids.length &&
-      ids.every((id) => selectedFeatures.has(id))
-    ) {
+    if (visibleSelectedIds.length === ids.length) {
       setSelectedFeatures(new Set());
     } else {
       setSelectedFeatures(new Set(ids));
@@ -187,27 +223,17 @@ export function ProjectPage() {
   };
 
   const handleBulkDelete = () => {
-    selectedFeatures.forEach((id) => deleteFeature(id));
+    visibleSelectedIds.forEach((id) => deleteFeature(id));
     setSelectedFeatures(new Set());
+    setShowBulkDelete(false);
   };
 
   const handleBulkExport = () => {
-    const selected = features.filter((f) => selectedFeatures.has(f.id));
+    const selected = filteredFeatures.filter((f) =>
+      selectedFeatures.has(f.id),
+    );
     if (selected.length > 0) exportAllFeatures(selected, project.name);
   };
-
-  // Gather all unique tags in project for filter
-  const allProjectTags = useMemo(
-    () =>
-      Array.from(
-        new Map(
-          features
-            .flatMap((f) => [...f.tags, ...f.scenarios.flatMap((s) => s.tags)])
-            .map((t) => [t.name, t]),
-        ).values(),
-      ),
-    [features],
-  );
 
   const handleCreate = () => {
     if (!name.trim()) return;
@@ -244,25 +270,6 @@ export function ProjectPage() {
     setFolderPath(feature.folderPath);
     setEditingFeature(feature.id);
   };
-
-  const handleImport = useCallback(
-    (imported: typeof features) => {
-      const existingNames = new Set(features.map((f) => f.name.toLowerCase()));
-      const dupes = imported.filter((f) =>
-        existingNames.has(f.name.toLowerCase()),
-      );
-
-      if (dupes.length > 0) {
-        setPendingImport(imported);
-        setDuplicateNames(dupes.map((f) => f.name));
-        setShowImport(false);
-      } else {
-        importFeatures(projectId!, imported);
-        setShowImport(false);
-      }
-    },
-    [projectId, importFeatures, features],
-  );
 
   const handleImportSkipDuplicates = () => {
     if (!pendingImport) return;
@@ -420,20 +427,20 @@ export function ProjectPage() {
                   onClick={toggleSelectAll}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-input bg-background hover:bg-accent transition-colors cursor-pointer text-muted-foreground hover:text-foreground"
                 >
-                  {selectedFeatures.size === 0 ? (
+                  {visibleSelectedIds.length === 0 ? (
                     <Square className="w-3.5 h-3.5" />
-                  ) : selectedFeatures.size === filteredFeatures.length ? (
+                  ) : visibleSelectedIds.length === filteredFeatures.length ? (
                     <CheckSquare className="w-3.5 h-3.5" />
                   ) : (
                     <MinusSquare className="w-3.5 h-3.5" />
                   )}
-                  {selectedFeatures.size === 0
+                  {visibleSelectedIds.length === 0
                     ? "Select All"
-                    : selectedFeatures.size === filteredFeatures.length
+                    : visibleSelectedIds.length === filteredFeatures.length
                       ? "Deselect All"
-                      : `${selectedFeatures.size} selected`}
+                      : `${visibleSelectedIds.length} selected`}
                 </button>
-                {selectedFeatures.size > 0 && (
+                {visibleSelectedIds.length > 0 && (
                   <>
                     <Button
                       size="sm"
@@ -441,15 +448,15 @@ export function ProjectPage() {
                       onClick={handleBulkExport}
                     >
                       <Download className="w-3.5 h-3.5" />
-                      Export ({selectedFeatures.size})
+                      Export ({visibleSelectedIds.length})
                     </Button>
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={handleBulkDelete}
+                      onClick={() => setShowBulkDelete(true)}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      Delete ({selectedFeatures.size})
+                      Delete ({visibleSelectedIds.length})
                     </Button>
                     <span className="text-[10px] text-muted-foreground ml-2">
                       Hold Shift to select a range, Ctrl/Cmd to toggle
@@ -748,6 +755,38 @@ export function ProjectPage() {
                 )}
               <Button onClick={handleImportOverwrite}>
                 Overwrite Existing
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        <Modal
+          open={showBulkDelete}
+          onClose={() => setShowBulkDelete(false)}
+          title="Delete Features"
+          size="sm"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 text-destructive">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <p className="text-sm">
+                This will permanently delete{" "}
+                <strong>
+                  {visibleSelectedIds.length} feature
+                  {visibleSelectedIds.length !== 1 ? "s" : ""}
+                </strong>{" "}
+                and all their scenarios.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowBulkDelete(false)}
+              >
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleBulkDelete}>
+                Delete
               </Button>
             </div>
           </div>

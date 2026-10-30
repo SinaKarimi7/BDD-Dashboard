@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useAppStore } from "@/store";
 import type { Examples } from "@/types";
 import { Button, Input } from "@/components/ui";
+import { pushUndo } from "@/hooks/useUndoRedo";
 
 interface ExamplesEditorProps {
   featureId: string;
@@ -28,6 +29,7 @@ export function ExamplesEditor({
       .map((h) => h.trim())
       .filter(Boolean);
     if (headers.length === 0) return;
+    pushUndo(featureId, "Add examples");
     addExamples(featureId, scenarioId, { name: "", headers, rows: [] });
     setNewHeaders("");
     setShowAdd(false);
@@ -35,9 +37,17 @@ export function ExamplesEditor({
 
   const addRow = (exId: string, ex: Examples) => {
     const newRow = ex.headers.map(() => "");
+    pushUndo(featureId, "Add example row");
     updateExamples(featureId, scenarioId, exId, {
       rows: [...ex.rows, newRow],
     });
+  };
+
+  // One undo entry per focus of a cell, not one per keystroke.
+  const cellUndoPending = useRef(false);
+
+  const handleCellFocus = () => {
+    cellUndoPending.current = true;
   };
 
   const updateCell = (
@@ -47,6 +57,10 @@ export function ExamplesEditor({
     colIdx: number,
     value: string,
   ) => {
+    if (cellUndoPending.current) {
+      pushUndo(featureId, "Edit example cell");
+      cellUndoPending.current = false;
+    }
     const newRows = ex.rows.map((row, ri) =>
       ri === rowIdx
         ? row.map((cell, ci) => (ci === colIdx ? value : cell))
@@ -56,6 +70,7 @@ export function ExamplesEditor({
   };
 
   const deleteRow = (exId: string, ex: Examples, rowIdx: number) => {
+    pushUndo(featureId, "Delete example row");
     updateExamples(featureId, scenarioId, exId, {
       rows: ex.rows.filter((_, i) => i !== rowIdx),
     });
@@ -98,7 +113,12 @@ export function ExamplesEditor({
               {ex.name || "Examples"}
             </span>
             <button
-              onClick={() => deleteExamples(featureId, scenarioId, ex.id)}
+              onClick={() => {
+                pushUndo(featureId, "Delete examples");
+                deleteExamples(featureId, scenarioId, ex.id);
+              }}
+              title="Delete examples"
+              aria-label="Delete examples"
               className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -130,9 +150,11 @@ export function ExamplesEditor({
                       >
                         <input
                           value={cell}
+                          onFocus={handleCellFocus}
                           onChange={(e) =>
                             updateCell(ex.id, ex, ri, ci, e.target.value)
                           }
+                          aria-label={`${ex.headers[ci] || "Value"}, row ${ri + 1}`}
                           className="w-full bg-transparent px-2 py-1 text-sm outline-none focus:bg-background focus:ring-1 focus:ring-ring rounded"
                         />
                       </td>
@@ -140,7 +162,9 @@ export function ExamplesEditor({
                     <td className="px-1 py-0.5 border-b border-border">
                       <button
                         onClick={() => deleteRow(ex.id, ex, ri)}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all cursor-pointer p-1"
+                        title="Delete row"
+                        aria-label="Delete row"
+                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground hover:text-destructive transition-all cursor-pointer p-1"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>

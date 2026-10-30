@@ -278,7 +278,7 @@ export function BoardViewPage() {
             <Select
               label="Type"
               value={type}
-              onChange={(e) => setType(e.target.value as typeof type)}
+              onChange={setType}
               options={[
                 { value: "scenario", label: "Scenario" },
                 { value: "scenario_outline", label: "Scenario Outline" },

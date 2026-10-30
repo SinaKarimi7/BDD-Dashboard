@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   Plus,
   GripVertical,
@@ -26,23 +26,18 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/store";
-import type { Background, StepKeyword } from "@/types";
-import { Button } from "@/components/ui";
+import type { Background, Step, StepKeyword } from "@/types";
+import { Button, Select } from "@/components/ui";
 import { pushUndo } from "@/hooks/useUndoRedo";
 import { collapseTransition } from "@/lib/motion";
+import { isRtlLanguage } from "@/lib/gherkin";
+import { keywordOptions } from "./keywordOptions";
 
 interface BackgroundEditorProps {
   featureId: string;
   background: Background | null;
 }
 
-const KEYWORDS: { value: StepKeyword; label: string; color: string }[] = [
-  { value: "Given", label: "Given", color: "text-blue-600" },
-  { value: "When", label: "When", color: "text-amber-600" },
-  { value: "Then", label: "Then", color: "text-green-600" },
-  { value: "And", label: "And", color: "text-gray-500" },
-  { value: "But", label: "But", color: "text-red-500" },
-];
 
 export function BackgroundEditor({
   featureId,
@@ -50,6 +45,8 @@ export function BackgroundEditor({
 }: BackgroundEditorProps) {
   const setBackground = useAppStore((s) => s.setBackground);
   const removeBackground = useAppStore((s) => s.removeBackground);
+  const updateFeature = useAppStore((s) => s.updateFeature);
+  const language = useAppStore((s) => s.getFeature(featureId)?.language);
 
   const [expanded, setExpanded] = useState(true);
   const [newKeyword, setNewKeyword] = useState<StepKeyword>("Given");
@@ -99,28 +96,33 @@ export function BackgroundEditor({
     setNewText("");
   }, [background, featureId, newKeyword, newText, setBackground]);
 
+  // One undo entry per focus of a step's text input, not one per keystroke.
+  const textUndoPending = useRef(false);
+
+  const handleTextFocus = useCallback(() => {
+    textUndoPending.current = true;
+  }, []);
+
+  // Update in place so step ids (and the inputs keyed by them) stay stable.
   const handleUpdateStep = useCallback(
     (stepId: string, updates: { keyword?: StepKeyword; text?: string }) => {
       if (!background) return;
-      pushUndo(featureId, "Edit background step");
-      const newSteps = background.steps.map((s) =>
-        s.id === stepId
-          ? {
-              keyword: updates.keyword ?? s.keyword,
-              text: updates.text ?? s.text,
-              dataTable: s.dataTable,
-              docString: s.docString,
-            }
-          : {
-              keyword: s.keyword,
-              text: s.text,
-              dataTable: s.dataTable,
-              docString: s.docString,
-            },
-      );
-      setBackground(featureId, newSteps);
+      if (updates.text === undefined) {
+        pushUndo(featureId, "Edit background step");
+      } else if (textUndoPending.current) {
+        pushUndo(featureId, "Edit background step");
+        textUndoPending.current = false;
+      }
+      updateFeature(featureId, {
+        background: {
+          ...background,
+          steps: background.steps.map((s) =>
+            s.id === stepId ? { ...s, ...updates } : s,
+          ),
+        },
+      });
     },
-    [background, featureId, setBackground],
+    [background, featureId, updateFeature],
   );
 
   const handleDeleteStep = useCallback(
@@ -153,17 +155,14 @@ export function BackgroundEditor({
       const oldIndex = steps.findIndex((s) => s.id === active.id);
       const newIndex = steps.findIndex((s) => s.id === over.id);
       const reordered = arrayMove(steps, oldIndex, newIndex);
-      setBackground(
-        featureId,
-        reordered.map((s) => ({
-          keyword: s.keyword,
-          text: s.text,
-          dataTable: s.dataTable,
-          docString: s.docString,
-        })),
-      );
+      updateFeature(featureId, {
+        background: {
+          ...background,
+          steps: reordered.map((s, i) => ({ ...s, position: i })),
+        },
+      });
     },
-    [background, featureId, setBackground, steps],
+    [background, featureId, updateFeature, steps],
   );
 
   // No background yet — show "Add Background" button
@@ -189,6 +188,8 @@ export function BackgroundEditor({
       <div className="flex items-center gap-2 px-4 py-3">
         <button
           onClick={() => setExpanded(!expanded)}
+          aria-label={expanded ? "Collapse background" : "Expand background"}
+          aria-expanded={expanded}
           className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
         >
           {expanded ? (
@@ -211,6 +212,7 @@ export function BackgroundEditor({
           onClick={handleRemoveBackground}
           className="shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
           title="Remove background"
+          aria-label="Remove background"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -241,7 +243,9 @@ export function BackgroundEditor({
                     <SortableBgStep
                       key={step.id}
                       step={step}
+                      language={language}
                       onUpdate={handleUpdateStep}
+                      onTextFocus={handleTextFocus}
                       onDelete={handleDeleteStep}
                     />
                   ))}
@@ -250,24 +254,25 @@ export function BackgroundEditor({
 
               {/* Add step row */}
               <div className="flex items-center gap-2">
-                <select
-                  value={newKeyword}
-                  onChange={(e) => setNewKeyword(e.target.value as StepKeyword)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+                <div
+                  dir={isRtlLanguage(language) ? "rtl" : undefined}
+                  className="flex flex-1 items-center gap-2"
                 >
-                  {KEYWORDS.map((k) => (
-                    <option key={k.value} value={k.value}>
-                      {k.label}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={newText}
-                  onChange={(e) => setNewText(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddStep()}
-                  placeholder="Step text…"
-                  className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+                  <Select
+                    value={newKeyword}
+                    onChange={setNewKeyword}
+                    options={keywordOptions(language)}
+                    aria-label="Keyword for the new step"
+                    className="h-8 w-auto shrink-0 rounded-md px-2 text-sm font-medium"
+                  />
+                  <input
+                    value={newText}
+                    onChange={(e) => setNewText(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddStep()}
+                    placeholder="Step text…"
+                    className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -288,15 +293,23 @@ export function BackgroundEditor({
 // ─── Sortable Background Step ───────────────────────────────
 
 interface SortableBgStepProps {
-  step: { id: string; keyword: StepKeyword; text: string };
+  step: Step;
+  language?: string;
   onUpdate: (
     id: string,
     updates: { keyword?: StepKeyword; text?: string },
   ) => void;
+  onTextFocus: () => void;
   onDelete: (id: string) => void;
 }
 
-function SortableBgStep({ step, onUpdate, onDelete }: SortableBgStepProps) {
+function SortableBgStep({
+  step,
+  language,
+  onUpdate,
+  onTextFocus,
+  onDelete,
+}: SortableBgStepProps) {
   const {
     attributes,
     listeners,
@@ -311,9 +324,6 @@ function SortableBgStep({ step, onUpdate, onDelete }: SortableBgStepProps) {
     transition,
   };
 
-  const kwColor =
-    KEYWORDS.find((k) => k.value === step.keyword)?.color ?? "text-gray-500";
-
   return (
     <div
       ref={setNodeRef}
@@ -325,33 +335,39 @@ function SortableBgStep({ step, onUpdate, onDelete }: SortableBgStepProps) {
       <button
         {...attributes}
         {...listeners}
+        aria-label="Drag to reorder step"
         className="cursor-grab shrink-0 text-muted-foreground hover:text-foreground"
       >
         <GripVertical className="w-3.5 h-3.5" />
       </button>
 
-      <select
-        value={step.keyword}
-        onChange={(e) =>
-          onUpdate(step.id, { keyword: e.target.value as StepKeyword })
-        }
-        className={`bg-transparent text-sm font-medium outline-none cursor-pointer ${kwColor}`}
+      {/* Keyword and text follow the feature's writing direction */}
+      <div
+        dir={isRtlLanguage(language) ? "rtl" : undefined}
+        className="flex flex-1 min-w-0 items-center gap-2"
       >
-        {KEYWORDS.map((k) => (
-          <option key={k.value} value={k.value}>
-            {k.label}
-          </option>
-        ))}
-      </select>
+        <Select
+          variant="inline"
+          value={step.keyword}
+          onChange={(keyword) => onUpdate(step.id, { keyword })}
+          options={keywordOptions(language, step)}
+          aria-label="Step keyword"
+          className="shrink-0 text-sm font-medium"
+        />
 
-      <input
-        value={step.text}
-        onChange={(e) => onUpdate(step.id, { text: e.target.value })}
-        className="flex-1 bg-transparent text-sm outline-none min-w-0"
-      />
+        <input
+          value={step.text}
+          onFocus={onTextFocus}
+          onChange={(e) => onUpdate(step.id, { text: e.target.value })}
+          aria-label="Step text"
+          className="flex-1 bg-transparent text-sm outline-none min-w-0"
+        />
+      </div>
 
       <button
         onClick={() => onDelete(step.id)}
+        title="Delete step"
+        aria-label="Delete step"
         className="shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
       >
         <Trash2 className="w-3.5 h-3.5" />
